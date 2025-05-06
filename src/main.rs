@@ -58,7 +58,7 @@ impl Token {
             Self::Word(w) => Ok(w),
             Self::Def => Err(Error::Reserved),
             Self::Num(n) => Err(Error::DefNum(n)),
-            _ => Err(Error::NaName(self)),
+            _ => Ok(self.to_string()),
         }
     }
     fn into_num(self) -> Result<i64, Error> {
@@ -160,6 +160,8 @@ fn read_eval_print(stack: &mut Stack, env: &mut Env, s: &str) -> Result<(), Erro
                 let us = ts.collect::<Vec<_>>();
                 if us.is_empty() {
                     return Err(Error::DefBody);
+                } else if us.iter().any(|u| u.to_string() == k) {
+                    return Err(Error::SelfRef(k));
                 }
                 let _ = env.insert(k, us);
                 break;
@@ -170,15 +172,13 @@ fn read_eval_print(stack: &mut Stack, env: &mut Env, s: &str) -> Result<(), Erro
     Ok(())
 }
 
-#[derive(Clone, Debug, Default, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, thiserror::Error)]
 enum Error {
     #[default]
     #[error("Something bad happened.")]
     Bad,
     #[error("I expected a number, but I found `{0}`.")]
     NaN(Token),
-    #[error("I expected a name, but I found `{0}`.")]
-    NaName(Token),
     #[error("The stack is too small for `{0}`; it requires {1}, but the stack only has {2}.")]
     Small(Token, usize, usize),
     #[error("Parsing error: `{0}`.")]
@@ -187,6 +187,8 @@ enum Error {
     Readline(String),
     #[error("Unknown op: `{0}`.")]
     Unknown(String),
+    #[error("Self reference: `{0}` refers to itself.")]
+    SelfRef(String),
     #[error("`def` is a reserved keyword.")]
     Reserved,
     #[error("`def` needs a name, but none was supplied.")]
