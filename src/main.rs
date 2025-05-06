@@ -25,9 +25,9 @@ enum Token {
     Div,
     #[token("mod")]
     Mod,
-    #[token("zero")]
+    #[token("zero?")]
     Zero,
-    #[regex(r"[0-9]+", |lex| lex.slice().parse().map_err(|e: ParseIntError| Error::Parsing(e.to_string())), priority = 3)]
+    #[regex(r"-?[0-9]+", |lex| lex.slice().parse().map_err(|e: ParseIntError| Error::Parsing(e.to_string())), priority = 3)]
     Num(i64),
     #[regex(r"\w+", |lex| lex.slice().to_owned())]
     Word(String),
@@ -45,7 +45,7 @@ impl fmt::Display for Token {
             Self::Mul => f.write_str("mul"),
             Self::Div => f.write_str("div"),
             Self::Mod => f.write_str("mod"),
-            Self::Zero => f.write_str("zero"),
+            Self::Zero => f.write_str("zero?"),
             Self::Num(n) => write!(f, "{n}"),
             Self::Word(w) => write!(f, "{w}"),
         }
@@ -78,15 +78,15 @@ impl Default for Machine {
     fn default() -> Self {
         Self {
             env: RefCell::new(IndexMap::from_iter([
-                ("pop".to_string(), vec![Token::Pop]),
-                ("swap".to_string(), vec![Token::Swap]),
-                ("dup".to_string(), vec![Token::Dup]),
-                ("add".to_string(), vec![Token::Add]),
-                ("sub".to_string(), vec![Token::Sub]),
-                ("mul".to_string(), vec![Token::Mul]),
-                ("div".to_string(), vec![Token::Div]),
-                ("mod".to_string(), vec![Token::Mod]),
-                ("zero".to_string(), vec![Token::Zero]),
+                (Token::Pop.to_string(), vec![Token::Pop]),
+                (Token::Swap.to_string(), vec![Token::Swap]),
+                (Token::Dup.to_string(), vec![Token::Dup]),
+                (Token::Add.to_string(), vec![Token::Add]),
+                (Token::Sub.to_string(), vec![Token::Sub]),
+                (Token::Mul.to_string(), vec![Token::Mul]),
+                (Token::Div.to_string(), vec![Token::Div]),
+                (Token::Mod.to_string(), vec![Token::Mod]),
+                (Token::Zero.to_string(), vec![Token::Zero]),
             ])),
             stack: Default::default(),
         }
@@ -156,9 +156,10 @@ impl Machine {
                 self.stack.borrow_mut().push(Token::Num(x % y));
             }
             Token::Zero => {
-                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
-                let b = if x == 0 { 1 } else { 0 };
-                self.stack.borrow_mut().push(Token::Num(b));
+                let x = self.pop(t, 3, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 3, 1)?;
+                let z = self.pop(t, 3, 2)?;
+                self.stack.borrow_mut().push(if x == 0 { y } else { z });
             }
             Token::Word(w) => match self.env.borrow().get(w) {
                 None => return Err(Error::Unknown(w.to_string())),
