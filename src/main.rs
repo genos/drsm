@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
 use logos::Logos;
 use rustyline::{error::ReadlineError, Config, EditMode, Editor};
-use std::{fmt, num::ParseIntError};
+use std::{cell::RefCell, fmt, num::ParseIntError};
 
 #[derive(Logos, Debug, PartialEq, Eq, Clone)]
 #[logos(error = Error)]
@@ -69,107 +69,128 @@ impl Token {
     }
 }
 
-type Env = IndexMap<String, Vec<Token>>;
-
-fn default_env() -> Env {
-    Env::from_iter([
-        ("pop".to_string(), vec![Token::Pop]),
-        ("swap".to_string(), vec![Token::Swap]),
-        ("dup".to_string(), vec![Token::Dup]),
-        ("add".to_string(), vec![Token::Add]),
-        ("sub".to_string(), vec![Token::Sub]),
-        ("mul".to_string(), vec![Token::Mul]),
-        ("div".to_string(), vec![Token::Div]),
-        ("mod".to_string(), vec![Token::Mod]),
-        ("zero".to_string(), vec![Token::Zero]),
-    ])
+struct Machine {
+    env: RefCell<IndexMap<String, Vec<Token>>>,
+    stack: RefCell<Vec<Token>>,
 }
 
-type Stack = Vec<Token>;
-
-fn pop(stack: &mut Stack, t: &Token, required: usize, stack_len: usize) -> Result<Token, Error> {
-    stack
-        .pop()
-        .ok_or(Error::Small(t.clone(), required, stack_len))
-}
-
-fn eval(stack: &mut Vec<Token>, env: &Env, t: &Token) -> Result<(), Error> {
-    match t {
-        Token::Def => return Err(Error::Reserved),
-        Token::Num(_) => stack.push(t.clone()),
-        Token::Pop => pop(stack, t, 1, 0).map(|_| ())?,
-        Token::Swap => {
-            let x = pop(stack, t, 2, 0)?;
-            let y = pop(stack, t, 2, 1)?;
-            stack.push(x);
-            stack.push(y);
+impl Default for Machine {
+    fn default() -> Self {
+        Self {
+            env: RefCell::new(IndexMap::from_iter([
+                ("pop".to_string(), vec![Token::Pop]),
+                ("swap".to_string(), vec![Token::Swap]),
+                ("dup".to_string(), vec![Token::Dup]),
+                ("add".to_string(), vec![Token::Add]),
+                ("sub".to_string(), vec![Token::Sub]),
+                ("mul".to_string(), vec![Token::Mul]),
+                ("div".to_string(), vec![Token::Div]),
+                ("mod".to_string(), vec![Token::Mod]),
+                ("zero".to_string(), vec![Token::Zero]),
+            ])),
+            stack: Default::default(),
         }
-        Token::Dup => {
-            let x = pop(stack, t, 1, 0)?;
-            stack.push(x.clone());
-            stack.push(x);
-        }
-        Token::Add => {
-            let x = pop(stack, t, 2, 0).and_then(Token::into_num)?;
-            let y = pop(stack, t, 2, 1).and_then(Token::into_num)?;
-            stack.push(Token::Num(x + y));
-        }
-        Token::Sub => {
-            let x = pop(stack, t, 2, 0).and_then(Token::into_num)?;
-            let y = pop(stack, t, 2, 1).and_then(Token::into_num)?;
-            stack.push(Token::Num(x - y));
-        }
-        Token::Mul => {
-            let x = pop(stack, t, 2, 0).and_then(Token::into_num)?;
-            let y = pop(stack, t, 2, 1).and_then(Token::into_num)?;
-            stack.push(Token::Num(x * y));
-        }
-        Token::Div => {
-            let x = pop(stack, t, 2, 0).and_then(Token::into_num)?;
-            let y = pop(stack, t, 2, 1).and_then(Token::into_num)?;
-            stack.push(Token::Num(x / y));
-        }
-        Token::Mod => {
-            let x = pop(stack, t, 2, 0).and_then(Token::into_num)?;
-            let y = pop(stack, t, 2, 1).and_then(Token::into_num)?;
-            stack.push(Token::Num(x % y));
-        }
-        Token::Zero => {
-            let x = pop(stack, t, 2, 0).and_then(Token::into_num)?;
-            let b = if x == 0 { 1 } else { 0 };
-            stack.push(Token::Num(b));
-        }
-        Token::Word(w) => match env.get(w) {
-            None => return Err(Error::Unknown(w.to_string())),
-            Some(vs) => {
-                for v in vs {
-                    eval(stack, env, v)?;
-                }
-            }
-        },
     }
-    Ok(())
 }
 
-fn read_eval_print(stack: &mut Stack, env: &mut Env, s: &str) -> Result<(), Error> {
-    let mut ts = Token::lexer(s).filter_map(Result::ok);
-    while let Some(t) = ts.next() {
+impl fmt::Display for Machine {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("env:")?;
+        for k in self.env.borrow().keys().rev() {
+            write!(f, " {k}")?;
+        }
+        f.write_str("\nstack: [")?;
+        for t in self.stack.borrow().iter().rev() {
+            write!(f, " {t}")?;
+        }
+        f.write_str(" ]")
+    }
+}
+
+impl Machine {
+    fn pop(&self, t: &Token, required: usize, stack_len: usize) -> Result<Token, Error> {
+        self.stack
+            .borrow_mut()
+            .pop()
+            .ok_or(Error::Small(t.clone(), required, stack_len))
+    }
+    fn eval(&self, t: &Token) -> Result<(), Error> {
         match t {
-            Token::Def => {
-                let k = ts.next().ok_or(Error::DefName).and_then(Token::into_name)?;
-                let us = ts.collect::<Vec<_>>();
-                if us.is_empty() {
-                    return Err(Error::DefBody);
-                } else if us.iter().any(|u| u.to_string() == k) {
-                    return Err(Error::SelfRef(k));
-                }
-                let _ = env.insert(k, us);
-                break;
+            Token::Def => return Err(Error::Reserved),
+            Token::Num(_) => self.stack.borrow_mut().push(t.clone()),
+            Token::Pop => self.pop(t, 1, 0).map(|_| ())?,
+            Token::Swap => {
+                let x = self.pop(t, 2, 0)?;
+                let y = self.pop(t, 2, 1)?;
+                self.stack.borrow_mut().push(x);
+                self.stack.borrow_mut().push(y);
             }
-            _ => eval(stack, env, &t)?,
+            Token::Dup => {
+                let x = self.pop(t, 1, 0)?;
+                self.stack.borrow_mut().push(x.clone());
+                self.stack.borrow_mut().push(x);
+            }
+            Token::Add => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x + y));
+            }
+            Token::Sub => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x - y));
+            }
+            Token::Mul => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x * y));
+            }
+            Token::Div => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x / y));
+            }
+            Token::Mod => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x % y));
+            }
+            Token::Zero => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let b = if x == 0 { 1 } else { 0 };
+                self.stack.borrow_mut().push(Token::Num(b));
+            }
+            Token::Word(w) => match self.env.borrow().get(w) {
+                None => return Err(Error::Unknown(w.to_string())),
+                Some(vs) => {
+                    for v in vs {
+                        self.eval(v)?;
+                    }
+                }
+            },
         }
+        Ok(())
     }
-    Ok(())
+    fn read_eval_print(&self, s: &str) -> Result<(), Error> {
+        let mut ts = Token::lexer(s).filter_map(Result::ok);
+        while let Some(t) = ts.next() {
+            match t {
+                Token::Def => {
+                    let k = ts.next().ok_or(Error::DefName).and_then(Token::into_name)?;
+                    let us = ts.collect::<Vec<_>>();
+                    if us.is_empty() {
+                        return Err(Error::DefBody);
+                    } else if us.iter().any(|u| u.to_string() == k) {
+                        return Err(Error::SelfRef(k));
+                    }
+                    let _ = self.env.borrow_mut().insert(k, us);
+                    break;
+                }
+                _ => self.eval(&t)?,
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, thiserror::Error)]
@@ -203,8 +224,7 @@ fn main() -> Result<(), Error> {
     let config = Config::builder().edit_mode(EditMode::Vi).build();
     let mut rl: Editor<(), _> =
         Editor::with_config(config).map_err(|e| Error::Readline(e.to_string()))?;
-    let mut e = default_env();
-    let mut s = Stack::default();
+    let m = Machine::default();
     println!(
         r"
     ____  ____  _____ __  ___
@@ -222,7 +242,7 @@ fn main() -> Result<(), Error> {
             Ok(l) => {
                 rl.add_history_entry(l.as_str())
                     .map_err(|e| Error::Readline(e.to_string()))?;
-                match read_eval_print(&mut s, &mut e, &l) {
+                match m.read_eval_print(&l) {
                     Ok(()) => {}
                     Err(e) => eprintln!("{e}"),
                 }
@@ -238,15 +258,7 @@ fn main() -> Result<(), Error> {
                 eprintln!("Error: {err:?}");
             }
         }
-        print!("env:  ");
-        for k in e.keys().rev() {
-            print!(" {k}");
-        }
-        print!("\nstack: [");
-        for t in s.iter().rev() {
-            print!(" {t}");
-        }
-        println!(" ]");
+        println!("{m}");
     }
     rl.save_history("history.txt")
         .map_err(|e| Error::Readline(e.to_string()))?;
