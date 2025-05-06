@@ -70,7 +70,7 @@ type Env = IndexMap<String, Vec<Token>>;
 
 fn default_env() -> Env {
     Env::from_iter([
-        ("str".to_string(), vec![Token::Pop]),
+        ("pop".to_string(), vec![Token::Pop]),
         ("swap".to_string(), vec![Token::Swap]),
         ("dup".to_string(), vec![Token::Dup]),
         ("add".to_string(), vec![Token::Add]),
