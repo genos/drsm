@@ -29,7 +29,7 @@ enum Token {
     Zero,
     #[regex(r"-?[0-9]+", |lex| lex.slice().parse().map_err(|e: ParseIntError| Error::Parsing(e.to_string())), priority = 3)]
     Num(i64),
-    #[regex(r"\w+", |lex| lex.slice().to_owned())]
+    #[regex(r"\S+", |lex| lex.slice().to_owned())]
     Word(String),
 }
 
