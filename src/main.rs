@@ -25,6 +25,8 @@ enum Token {
     Div,
     #[token("mod")]
     Mod,
+    #[token("zero")]
+    Zero,
     #[regex(r"[0-9]+", |lex| lex.slice().parse().map_err(|e: ParseIntError| Error::Parsing(e.to_string())), priority = 3)]
     Num(i64),
     #[regex(r"\w+", |lex| lex.slice().to_owned())]
@@ -43,6 +45,7 @@ impl fmt::Display for Token {
             Self::Mul => f.write_str("mul"),
             Self::Div => f.write_str("div"),
             Self::Mod => f.write_str("mod"),
+            Self::Zero => f.write_str("zero"),
             Self::Num(n) => write!(f, "{n}"),
             Self::Word(w) => write!(f, "{w}"),
         }
@@ -78,6 +81,7 @@ fn default_env() -> Env {
         ("mul".to_string(), vec![Token::Mul]),
         ("div".to_string(), vec![Token::Div]),
         ("mod".to_string(), vec![Token::Mod]),
+        ("zero".to_string(), vec![Token::Zero]),
     ])
 }
 
@@ -129,6 +133,11 @@ fn eval(stack: &mut Vec<Token>, env: &Env, t: &Token) -> Result<(), Error> {
             let x = pop(stack, t, 2, 0).and_then(Token::into_num)?;
             let y = pop(stack, t, 2, 1).and_then(Token::into_num)?;
             stack.push(Token::Num(x % y));
+        }
+        Token::Zero => {
+            let x = pop(stack, t, 2, 0).and_then(Token::into_num)?;
+            let b = if x == 0 { 1 } else { 0 };
+            stack.push(Token::Num(b));
         }
         Token::Word(w) => match env.get(w) {
             None => return Err(Error::Unknown(w.to_string())),
