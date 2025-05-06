@@ -42,7 +42,7 @@ impl fmt::Display for Token {
             Self::Sub => f.write_str("sub"),
             Self::Mul => f.write_str("mul"),
             Self::Div => f.write_str("div"),
-            Self::Mod => f.write_str("modf"),
+            Self::Mod => f.write_str("mod"),
             Self::Num(n) => write!(f, "{n}"),
             Self::Word(w) => write!(f, "{w}"),
         }
