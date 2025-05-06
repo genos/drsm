@@ -1,78 +1,42 @@
+use indexmap::IndexMap;
+use logos::Logos;
 use rustyline::{error::ReadlineError, Config, EditMode, Editor};
-use std::{fmt, str::FromStr};
+use std::{cell::RefCell, fmt, num::ParseIntError};
 
-#[derive(Debug, Clone, Copy)]
-enum Value {
-    Num(i64),
-    Op(Op),
-}
-
-impl Default for Value {
-    fn default() -> Self {
-        Self::Num(0)
-    }
-}
-
-impl FromStr for Value {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.parse()
-            .map(Self::Num)
-            .or_else(|_| Op::from_str(s).map(Self::Op))
-    }
-}
-
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Num(n) => write!(f, "{n}"),
-            Self::Op(op) => write!(f, "{op}"),
-        }
-    }
-}
-
-impl Value {
-    fn to_num(self) -> Result<i64, Error> {
-        match self {
-            Self::Num(n) => Ok(n),
-            Self::Op(op) => Err(Error::NaN(op)),
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-enum Op {
-    #[default]
+#[derive(Logos, Debug, PartialEq, Eq, Clone)]
+#[logos(error = Error)]
+#[logos(skip r"\s")]
+enum Token {
+    #[token("def")]
+    Def,
+    #[token("pop")]
     Pop,
+    #[token("swap")]
     Swap,
+    #[token("dup")]
     Dup,
+    #[token("add")]
     Add,
+    #[token("sub")]
     Sub,
+    #[token("mul")]
     Mul,
+    #[token("div")]
     Div,
+    #[token("mod")]
     Mod,
+    #[token("zero")]
+    Zero,
+    #[regex(r"[0-9]+", |lex| lex.slice().parse().map_err(|e: ParseIntError| Error::Parsing(e.to_string())), priority = 3)]
+    Num(i64),
+    #[regex(r"\w+", |lex| lex.slice().to_owned())]
+    Word(String),
 }
 
-impl FromStr for Op {
-    type Err = Error;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "pop" => Ok(Self::Pop),
-            "swap" => Ok(Self::Swap),
-            "dup" => Ok(Self::Dup),
-            "add" => Ok(Self::Add),
-            "sub" => Ok(Self::Sub),
-            "mul" => Ok(Self::Mul),
-            "div" => Ok(Self::Div),
-            "mod" => Ok(Self::Mod),
-            _ => Err(Error::Token(s.to_string())),
-        }
-    }
-}
-
-impl fmt::Display for Op {
+impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Self::Def => f.write_str("def"),
             Self::Pop => f.write_str("pop"),
             Self::Swap => f.write_str("swap"),
             Self::Dup => f.write_str("dup"),
@@ -81,104 +45,186 @@ impl fmt::Display for Op {
             Self::Mul => f.write_str("mul"),
             Self::Div => f.write_str("div"),
             Self::Mod => f.write_str("mod"),
+            Self::Zero => f.write_str("zero"),
+            Self::Num(n) => write!(f, "{n}"),
+            Self::Word(w) => write!(f, "{w}"),
         }
     }
 }
 
-#[derive(Debug)]
-struct Stack(Vec<Value>);
+impl Token {
+    fn into_name(self) -> Result<String, Error> {
+        match self {
+            Self::Word(w) => Ok(w),
+            Self::Def => Err(Error::Reserved),
+            Self::Num(n) => Err(Error::DefNum(n)),
+            _ => Ok(self.to_string()),
+        }
+    }
+    fn into_num(self) -> Result<i64, Error> {
+        match self {
+            Self::Num(n) => Ok(n),
+            _ => Err(Error::NaN(self)),
+        }
+    }
+}
 
-impl fmt::Display for Stack {
+struct Machine {
+    env: RefCell<IndexMap<String, Vec<Token>>>,
+    stack: RefCell<Vec<Token>>,
+}
+
+impl Default for Machine {
+    fn default() -> Self {
+        Self {
+            env: RefCell::new(IndexMap::from_iter([
+                ("pop".to_string(), vec![Token::Pop]),
+                ("swap".to_string(), vec![Token::Swap]),
+                ("dup".to_string(), vec![Token::Dup]),
+                ("add".to_string(), vec![Token::Add]),
+                ("sub".to_string(), vec![Token::Sub]),
+                ("mul".to_string(), vec![Token::Mul]),
+                ("div".to_string(), vec![Token::Div]),
+                ("mod".to_string(), vec![Token::Mod]),
+                ("zero".to_string(), vec![Token::Zero]),
+            ])),
+            stack: Default::default(),
+        }
+    }
+}
+
+impl fmt::Display for Machine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("[")?;
-        for v in self.0.iter().rev() {
-            write!(f, " {v}")?;
+        f.write_str("env:")?;
+        for k in self.env.borrow().keys().rev() {
+            write!(f, " {k}")?;
+        }
+        f.write_str("\nstack: [")?;
+        for t in self.stack.borrow().iter().rev() {
+            write!(f, " {t}")?;
         }
         f.write_str(" ]")
     }
 }
 
-impl Stack {
-    fn new() -> Self {
-        Self(Vec::new())
+impl Machine {
+    fn pop(&self, t: &Token, required: usize, stack_len: usize) -> Result<Token, Error> {
+        self.stack
+            .borrow_mut()
+            .pop()
+            .ok_or(Error::Small(t.clone(), required, stack_len))
     }
-    fn pop(&mut self, op: Op, required: usize, stack_len: usize) -> Result<Value, Error> {
-        self.0.pop().ok_or(Error::Small(op, required, stack_len))
+    fn eval(&self, t: &Token) -> Result<(), Error> {
+        match t {
+            Token::Def => return Err(Error::Reserved),
+            Token::Num(_) => self.stack.borrow_mut().push(t.clone()),
+            Token::Pop => self.pop(t, 1, 0).map(|_| ())?,
+            Token::Swap => {
+                let x = self.pop(t, 2, 0)?;
+                let y = self.pop(t, 2, 1)?;
+                self.stack.borrow_mut().push(x);
+                self.stack.borrow_mut().push(y);
+            }
+            Token::Dup => {
+                let x = self.pop(t, 1, 0)?;
+                self.stack.borrow_mut().push(x.clone());
+                self.stack.borrow_mut().push(x);
+            }
+            Token::Add => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x + y));
+            }
+            Token::Sub => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x - y));
+            }
+            Token::Mul => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x * y));
+            }
+            Token::Div => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x / y));
+            }
+            Token::Mod => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let y = self.pop(t, 2, 1).and_then(Token::into_num)?;
+                self.stack.borrow_mut().push(Token::Num(x % y));
+            }
+            Token::Zero => {
+                let x = self.pop(t, 2, 0).and_then(Token::into_num)?;
+                let b = if x == 0 { 1 } else { 0 };
+                self.stack.borrow_mut().push(Token::Num(b));
+            }
+            Token::Word(w) => match self.env.borrow().get(w) {
+                None => return Err(Error::Unknown(w.to_string())),
+                Some(vs) => {
+                    for v in vs {
+                        self.eval(v)?;
+                    }
+                }
+            },
+        }
+        Ok(())
     }
-    fn eval(&mut self, vs: &[Value]) -> Result<(), Error> {
-        for &v in vs {
-            match v {
-                Value::Num(_) => self.0.push(v),
-                Value::Op(op) => match op {
-                    Op::Pop => self.pop(op, 1, 0).map(|_| ())?,
-                    Op::Swap => {
-                        let x = self.pop(op, 2, 0)?;
-                        let y = self.pop(op, 2, 1)?;
-                        self.0.push(x);
-                        self.0.push(y);
+    fn read_eval_print(&self, s: &str) -> Result<(), Error> {
+        let mut ts = Token::lexer(s).filter_map(Result::ok);
+        while let Some(t) = ts.next() {
+            match t {
+                Token::Def => {
+                    let k = ts.next().ok_or(Error::DefName).and_then(Token::into_name)?;
+                    let us = ts.collect::<Vec<_>>();
+                    if us.is_empty() {
+                        return Err(Error::DefBody);
+                    } else if us.iter().any(|u| u.to_string() == k) {
+                        return Err(Error::SelfRef(k));
                     }
-                    Op::Dup => {
-                        let x = self.pop(op, 1, 0)?;
-                        self.0.push(x);
-                        self.0.push(x);
-                    }
-                    Op::Add => {
-                        let x = self.pop(op, 2, 0).and_then(Value::to_num)?;
-                        let y = self.pop(op, 2, 1).and_then(Value::to_num)?;
-                        self.0.push(Value::Num(x + y));
-                    }
-                    Op::Sub => {
-                        let x = self.pop(op, 2, 0).and_then(Value::to_num)?;
-                        let y = self.pop(op, 2, 1).and_then(Value::to_num)?;
-                        self.0.push(Value::Num(x - y));
-                    }
-                    Op::Mul => {
-                        let x = self.pop(op, 2, 0).and_then(Value::to_num)?;
-                        let y = self.pop(op, 2, 1).and_then(Value::to_num)?;
-                        self.0.push(Value::Num(x * y));
-                    }
-                    Op::Div => {
-                        let x = self.pop(op, 2, 0).and_then(Value::to_num)?;
-                        let y = self.pop(op, 2, 1).and_then(Value::to_num)?;
-                        self.0.push(Value::Num(x / y));
-                    }
-                    Op::Mod => {
-                        let x = self.pop(op, 2, 0).and_then(Value::to_num)?;
-                        let y = self.pop(op, 2, 1).and_then(Value::to_num)?;
-                        self.0.push(Value::Num(x % y));
-                    }
-                },
+                    let _ = self.env.borrow_mut().insert(k, us);
+                    break;
+                }
+                _ => self.eval(&t)?,
             }
         }
         Ok(())
     }
-    fn read_eval_print(&mut self, s: &str) -> Result<(), Error> {
-        let vs = s
-            .split_ascii_whitespace()
-            .map(Value::from_str)
-            .collect::<Result<Vec<_>, _>>()?;
-        self.eval(&vs)?;
-        println!("{self}");
-        Ok(())
-    }
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, thiserror::Error)]
 enum Error {
+    #[default]
+    #[error("Something bad happened.")]
+    Bad,
     #[error("I expected a number, but I found `{0}`.")]
-    NaN(Op),
+    NaN(Token),
     #[error("The stack is too small for `{0}`; it requires {1}, but the stack only has {2}.")]
-    Small(Op, usize, usize),
-    #[error("Unknown token: `{0}`.")]
-    Token(String),
+    Small(Token, usize, usize),
+    #[error("Parsing error: `{0}`.")]
+    Parsing(String),
     #[error("Something happend when trying to read: {0}.")]
-    Readline(#[from] ReadlineError),
+    Readline(String),
+    #[error("Unknown op: `{0}`.")]
+    Unknown(String),
+    #[error("Self reference: `{0}` refers to itself.")]
+    SelfRef(String),
+    #[error("`def` is a reserved keyword.")]
+    Reserved,
+    #[error("`def` needs a name, but none was supplied.")]
+    DefName,
+    #[error("`def` needs a name, but a number `{0}` was supplied.")]
+    DefNum(i64),
+    #[error("`def` needs a body, but none was supplied.")]
+    DefBody,
 }
 
 fn main() -> Result<(), Error> {
     let config = Config::builder().edit_mode(EditMode::Vi).build();
-    let mut rl: Editor<(), _> = Editor::with_config(config)?;
-    let mut stack = Stack::new();
+    let mut rl: Editor<(), _> =
+        Editor::with_config(config).map_err(|e| Error::Readline(e.to_string()))?;
+    let m = Machine::default();
     println!(
         r"
     ____  ____  _____ __  ___
@@ -193,9 +239,10 @@ fn main() -> Result<(), Error> {
     }
     loop {
         match rl.readline(">  ") {
-            Ok(line) => {
-                rl.add_history_entry(line.as_str())?;
-                match stack.read_eval_print(&line) {
+            Ok(l) => {
+                rl.add_history_entry(l.as_str())
+                    .map_err(|e| Error::Readline(e.to_string()))?;
+                match m.read_eval_print(&l) {
                     Ok(()) => {}
                     Err(e) => eprintln!("{e}"),
                 }
@@ -211,7 +258,9 @@ fn main() -> Result<(), Error> {
                 eprintln!("Error: {err:?}");
             }
         }
+        println!("{m}");
     }
-    rl.save_history("history.txt")?;
+    rl.save_history("history.txt")
+        .map_err(|e| Error::Readline(e.to_string()))?;
     Ok(())
 }
