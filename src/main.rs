@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use logos::Logos;
-use rustyline::{error::ReadlineError, Config, EditMode, Editor};
+use rustyline::{Config, EditMode, Editor, error::ReadlineError};
 use std::{cell::RefCell, fmt, num::ParseIntError};
 
 #[derive(Logos, Debug, PartialEq, Eq, Clone)]
@@ -29,7 +29,9 @@ enum Token {
     Zero,
     #[regex(r"-?[0-9]+", |lex| lex.slice().parse().map_err(|e: ParseIntError| Error::Parsing(e.to_string())), priority = 3)]
     Num(i64),
-    #[regex(r"\S+", |lex| lex.slice().to_owned())]
+    #[regex(r"#[0-9a-fA-F]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16).map_err(|e: ParseIntError| Error::Parsing(e.to_string())))]
+    Hex(i64),
+    #[regex(r"\w+", |lex| lex.slice().to_owned())]
     Word(String),
 }
 
@@ -47,6 +49,7 @@ impl fmt::Display for Token {
             Self::Mod => f.write_str("mod"),
             Self::Zero => f.write_str("zero?"),
             Self::Num(n) => write!(f, "{n}"),
+            Self::Hex(n) => write!(f, "#{:x}", n),
             Self::Word(w) => write!(f, "{w}"),
         }
     }
@@ -58,12 +61,14 @@ impl Token {
             Self::Word(w) => Ok(w),
             Self::Def => Err(Error::Reserved),
             Self::Num(n) => Err(Error::DefNum(n)),
+            Self::Hex(n) => Err(Error::DefNum(n)),
             _ => Ok(self.to_string()),
         }
     }
     fn into_num(self) -> Result<i64, Error> {
         match self {
             Self::Num(n) => Ok(n),
+            Self::Hex(n) => Ok(n),
             _ => Err(Error::NaN(self)),
         }
     }
@@ -117,7 +122,7 @@ impl Machine {
     fn eval(&self, t: &Token) -> Result<(), Error> {
         match t {
             Token::Def => return Err(Error::Reserved),
-            Token::Num(_) => self.stack.borrow_mut().push(t.clone()),
+            Token::Num(_) | Token::Hex(_) => self.stack.borrow_mut().push(t.clone()),
             Token::Pop => self.pop(t, 1, 0).map(|_| ())?,
             Token::Swap => {
                 let x = self.pop(t, 2, 0)?;
