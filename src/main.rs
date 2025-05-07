@@ -49,7 +49,7 @@ impl fmt::Display for Token {
             Self::Mod => f.write_str("mod"),
             Self::Zero => f.write_str("zero?"),
             Self::Num(n) => write!(f, "{n}"),
-            Self::Hex(n) => write!(f, "#{:x}", n),
+            Self::Hex(n) => write!(f, "#{n:x}"),
             Self::Word(w) => write!(f, "{w}"),
         }
     }
@@ -60,15 +60,13 @@ impl Token {
         match self {
             Self::Word(w) => Ok(w),
             Self::Def => Err(Error::Reserved),
-            Self::Num(n) => Err(Error::DefNum(n)),
-            Self::Hex(n) => Err(Error::DefNum(n)),
+            Self::Num(n) | Self::Hex(n) => Err(Error::DefNum(n)),
             _ => Ok(self.to_string()),
         }
     }
     fn into_num(self) -> Result<i64, Error> {
         match self {
-            Self::Num(n) => Ok(n),
-            Self::Hex(n) => Ok(n),
+            Self::Num(n) | Self::Hex(n) => Ok(n),
             _ => Err(Error::NaN(self)),
         }
     }
@@ -93,7 +91,7 @@ impl Default for Machine {
                 (Token::Mod.to_string(), vec![Token::Mod]),
                 (Token::Zero.to_string(), vec![Token::Zero]),
             ])),
-            stack: Default::default(),
+            stack: RefCell::default(),
         }
     }
 }
