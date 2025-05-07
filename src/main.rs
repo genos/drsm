@@ -31,7 +31,7 @@ enum Token {
     Num(i64),
     #[regex(r"#[0-9a-fA-F]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16).map_err(|e: ParseIntError| Error::Parsing(e.to_string())))]
     Hex(i64),
-    #[regex(r"\w+", |lex| lex.slice().to_owned())]
+    #[regex(r"\S+", |lex| lex.slice().to_owned())]
     Word(String),
 }
 
