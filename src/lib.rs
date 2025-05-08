@@ -42,6 +42,9 @@ pub enum Error {
     /// A name was expected, but a number `{0}` was supplied.
     #[error("A name was expected, but a number `{0}` was supplied.")]
     NumNotName(i64),
+    /// A name was expected, but a core word `{0}` was supplied.
+    #[error("A name was expected, but a core word `{0}` was supplied.")]
+    CoreNotName(Word),
     /// `def` needs a body, but none was supplied.
     #[error("`def` needs a body, but none was supplied.")]
     DefBody,
@@ -143,7 +146,7 @@ impl Word {
         match self {
             Self::Num(n) => Err(Error::NumNotName(n)),
             Self::Custom(w) => Ok(w),
-            _ => Ok(self.to_string()),
+            _ => Err(Error::CoreNotName(self)),
         }
     }
 }
