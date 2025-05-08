@@ -24,9 +24,6 @@ pub enum Error {
     /// Parsing error: `{0}`.
     #[error("Parsing error: `{0}`.")]
     Parsing(String),
-    /// Something happened with readline: `{0}`.
-    #[error("Something happened with readline: `{0}`.")]
-    Readline(String),
     /// Unknown op: `{0}`.
     #[error("Unknown op: `{0}`.")]
     Unknown(String),
