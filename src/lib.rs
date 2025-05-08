@@ -139,22 +139,31 @@ impl TryFrom<Token<'_>> for Word {
     }
 }
 
-impl Word {
-    fn into_name(self) -> Result<String, Error> {
-        match self {
-            Self::Custom(w) => Ok(w),
-            Self::Num(n) => Err(Error::NumNotName(n)),
-            _ => Err(Error::CoreNotName(self.to_string())),
-        }
-    }
-}
-
 impl TryFrom<Word> for i64 {
     type Error = Error;
     fn try_from(w: Word) -> Result<Self, Self::Error> {
         match w {
             Word::Num(n) => Ok(n),
             _ => Err(Error::NaN(w.to_string())),
+        }
+    }
+}
+
+impl PartialEq<String> for Word {
+    fn eq(&self, s: &String) -> bool {
+        match self {
+            Self::Custom(w) => w == s,
+            _ => false,
+        }
+    }
+}
+
+impl Word {
+    fn into_name(self) -> Result<String, Error> {
+        match self {
+            Self::Custom(w) => Ok(w),
+            Self::Num(n) => Err(Error::NumNotName(n)),
+            _ => Err(Error::CoreNotName(self.to_string())),
         }
     }
 }
@@ -212,7 +221,7 @@ impl Machine {
                     let us = ts.map(Word::try_from).collect::<Result<Vec<_>, _>>()?;
                     if us.is_empty() {
                         return Err(Error::DefBody);
-                    } else if us.iter().any(|u| u.to_string() == k) {
+                    } else if us.iter().any(|u| u == &k) {
                         return Err(Error::SelfRef(k));
                     }
                     let _ = self.env.borrow_mut().insert(k, us);
