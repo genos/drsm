@@ -4,9 +4,9 @@
 #![warn(clippy::nursery)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
-use indexmap::IndexMap;
 use logos::Logos;
 use std::{cell::RefCell, convert::TryFrom, fmt, num::ParseIntError};
+use ustr::{Ustr, UstrMap};
 
 /// Our Error type.
 #[derive(Clone, Debug, Default, PartialEq, Eq, thiserror::Error)]
@@ -70,7 +70,7 @@ enum Token<'source> {
 }
 
 /// The words upon which our stack machine works.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 enum Word {
     /// Pop an item off the stack.
     Pop,
@@ -93,7 +93,7 @@ enum Word {
     /// An integer.
     Num(i64),
     /// A custom word.
-    Custom(String),
+    Custom(Ustr),
 }
 
 impl fmt::Display for Word {
@@ -134,7 +134,7 @@ impl TryFrom<Token<'_>> for Word {
                 _ => Err(Error::Unknown(w.to_string())),
             },
             Token::Num(n) | Token::Hex(n) => Ok(Self::Num(n)),
-            Token::Custom(w) => Ok(Self::Custom(w.to_string())),
+            Token::Custom(w) => Ok(Self::Custom(w.into())),
         }
     }
 }
@@ -149,8 +149,8 @@ impl TryFrom<Word> for i64 {
     }
 }
 
-impl PartialEq<String> for Word {
-    fn eq(&self, s: &String) -> bool {
+impl PartialEq<Ustr> for Word {
+    fn eq(&self, s: &Ustr) -> bool {
         match self {
             Self::Custom(w) => w == s,
             _ => false,
@@ -159,7 +159,7 @@ impl PartialEq<String> for Word {
 }
 
 impl Word {
-    fn into_name(self) -> Result<String, Error> {
+    fn into_name(self) -> Result<Ustr, Error> {
         match self {
             Self::Custom(w) => Ok(w),
             Self::Num(n) => Err(Error::NumNotName(n)),
@@ -171,7 +171,7 @@ impl Word {
 /// The main data structure: a stack machine with an environment of local definitions.
 #[derive(Default)]
 pub struct Machine {
-    env: RefCell<IndexMap<String, Vec<Word>>>,
+    env: RefCell<UstrMap<Vec<Word>>>,
     stack: RefCell<Vec<Word>>,
 }
 
@@ -192,7 +192,7 @@ impl fmt::Display for Machine {
             write!(f, " {t}")?;
         }
         f.write_str("\nenv:")?;
-        for k in self.env.borrow().keys().rev() {
+        for k in self.env.borrow().keys() {
             write!(f, " {k}")?;
         }
         f.write_str("\nstack: [")?;
@@ -222,7 +222,7 @@ impl Machine {
                     if us.is_empty() {
                         return Err(Error::DefBody);
                     } else if us.iter().any(|u| u == &k) {
-                        return Err(Error::SelfRef(k));
+                        return Err(Error::SelfRef(k.to_string()));
                     }
                     let _ = self.env.borrow_mut().insert(k, us);
                     break;
@@ -238,52 +238,52 @@ impl Machine {
             .pop()
             .ok_or_else(|| Error::Small(w.to_string(), required, stack_len))
     }
-    fn eval(&self, t: &Word) -> Result<(), Error> {
-        match t {
-            Word::Pop => self.pop(t, 1, 0).map(|_| ())?,
+    fn eval(&self, w: &Word) -> Result<(), Error> {
+        match w {
+            Word::Pop => self.pop(w, 1, 0).map(|_| ())?,
             Word::Swap => {
-                let x = self.pop(t, 2, 0)?;
-                let y = self.pop(t, 2, 1)?;
+                let x = self.pop(w, 2, 0)?;
+                let y = self.pop(w, 2, 1)?;
                 self.stack.borrow_mut().push(x);
                 self.stack.borrow_mut().push(y);
             }
             Word::Dup => {
-                let x = self.pop(t, 1, 0)?;
-                self.stack.borrow_mut().push(x.clone());
+                let x = self.pop(w, 1, 0)?;
+                self.stack.borrow_mut().push(x);
                 self.stack.borrow_mut().push(x);
             }
             Word::Add => {
-                let x = self.pop(t, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(t, 2, 1).and_then(i64::try_from)?;
+                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
+                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
                 self.stack.borrow_mut().push(Word::Num(x + y));
             }
             Word::Sub => {
-                let x = self.pop(t, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(t, 2, 1).and_then(i64::try_from)?;
+                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
+                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
                 self.stack.borrow_mut().push(Word::Num(x - y));
             }
             Word::Mul => {
-                let x = self.pop(t, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(t, 2, 1).and_then(i64::try_from)?;
+                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
+                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
                 self.stack.borrow_mut().push(Word::Num(x * y));
             }
             Word::Div => {
-                let x = self.pop(t, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(t, 2, 1).and_then(i64::try_from)?;
+                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
+                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
                 self.stack.borrow_mut().push(Word::Num(x / y));
             }
             Word::Mod => {
-                let x = self.pop(t, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(t, 2, 1).and_then(i64::try_from)?;
+                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
+                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
                 self.stack.borrow_mut().push(Word::Num(x % y));
             }
             Word::Zero => {
-                let x = self.pop(t, 3, 0).and_then(i64::try_from)?;
-                let y = self.pop(t, 3, 1)?;
-                let z = self.pop(t, 3, 2)?;
+                let x = self.pop(w, 3, 0).and_then(i64::try_from)?;
+                let y = self.pop(w, 3, 1)?;
+                let z = self.pop(w, 3, 2)?;
                 self.stack.borrow_mut().push(if x == 0 { y } else { z });
             }
-            Word::Num(_) => self.stack.borrow_mut().push(t.clone()),
+            Word::Num(_) => self.stack.borrow_mut().push(*w),
             Word::Custom(w) => match self.env.borrow().get(w) {
                 None => return Err(Error::Unknown(w.to_string())),
                 Some(vs) => {

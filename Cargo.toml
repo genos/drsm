@@ -5,10 +5,10 @@ version = "0.3.0"
 edition = "2024"
 
 [dependencies]
-indexmap = "2.9.0"
 logos = "0.15.0"
 rustyline = "15.0.0"
 thiserror = "2.0.12"
+ustr = "1.1.0"
 
 [profile.dev]
 debug = 0
