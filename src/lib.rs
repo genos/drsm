@@ -6,7 +6,7 @@
 #![deny(unsafe_code)]
 use indexmap::IndexMap;
 use logos::Logos;
-use std::{cell::RefCell, convert::TryFrom, fmt};
+use std::{cell::RefCell, convert::TryFrom, fmt, num::ParseIntError};
 
 /// Our Error type.
 #[derive(Clone, Debug, Default, PartialEq, Eq, thiserror::Error)]
@@ -21,9 +21,9 @@ pub enum Error {
     /// The stack is too small for `{0}`; it requires {1}, but the stack only has {2}.
     #[error("The stack is too small for `{0}`; it requires {1}, but the stack only has {2}.")]
     Small(Word, usize, usize),
-    /// Parsing error: `{0}`.
-    #[error("Parsing error: `{0}`.")]
-    Parsing(String),
+    /// Error parsing an int: `{0}`.
+    #[error("Error parsing an int: `{0}`.")]
+    Parsing(#[from] ParseIntError),
     /// Unknown op: `{0}`.
     #[error("Unknown op: `{0}`.")]
     Unknown(String),
@@ -51,7 +51,7 @@ pub enum Error {
 #[derive(Logos, Debug, PartialEq, Eq, Clone)]
 #[logos(error = Error)]
 #[logos(skip r"\s")]
-pub enum Token<'source> {
+enum Token<'source> {
     /// Define a new word.
     #[token("def")]
     Def,
@@ -59,10 +59,10 @@ pub enum Token<'source> {
     #[regex(r"(pop|swap|dup|add|sub|mul|div|mod|zero)")]
     Core(&'source str),
     /// An integer in decimal notation.
-    #[regex(r"-?[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|e| Error::Parsing(e.to_string())))]
+    #[regex(r"-?[0-9]+", |lex| lex.slice().parse().map_err(Error::Parsing))]
     Num(i64),
     /// An integer in hexadecimal notation.
-    #[regex(r"#[0-9a-fA-F]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16).map_err(|e| Error::Parsing(e.to_string())))]
+    #[regex(r"#[0-9a-fA-F]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16).map_err(Error::Parsing))]
     Hex(i64),
     /// A (possibly unknown) custom token.
     #[regex(r"\S+", priority = 0)]
@@ -120,6 +120,7 @@ impl TryFrom<Token<'_>> for Word {
         match t {
             Token::Def => Err(Error::Reserved),
             Token::Core(w) => match w {
+                // A verbose pattern rather than strings to ensure this matches the Display impl.
                 s if s == Self::Pop.to_string() => Ok(Self::Pop),
                 s if s == Self::Swap.to_string() => Ok(Self::Swap),
                 s if s == Self::Dup.to_string() => Ok(Self::Dup),
