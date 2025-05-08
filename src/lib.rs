@@ -17,10 +17,10 @@ pub enum Error {
     Bad,
     /// I expected a number, but I found `{0}`.
     #[error("I expected a number, but I found `{0}`.")]
-    NaN(Word),
+    NaN(String),
     /// The stack is too small for `{0}`; it requires {1}, but the stack only has {2}.
     #[error("The stack is too small for `{0}`; it requires {1}, but the stack only has {2}.")]
-    Small(Word, usize, usize),
+    Small(String, usize, usize),
     /// Error parsing an int: `{0}`.
     #[error("Error parsing an int: `{0}`.")]
     Parsing(#[from] ParseIntError),
@@ -41,7 +41,7 @@ pub enum Error {
     NumNotName(i64),
     /// A name was expected, but a core word `{0}` was supplied.
     #[error("A name was expected, but a core word `{0}` was supplied.")]
-    CoreNotName(Word),
+    CoreNotName(String),
     /// `def` needs a body, but none was supplied.
     #[error("`def` needs a body, but none was supplied.")]
     DefBody,
@@ -144,7 +144,7 @@ impl Word {
         match self {
             Self::Num(n) => Err(Error::NumNotName(n)),
             Self::Custom(w) => Ok(w),
-            _ => Err(Error::CoreNotName(self)),
+            _ => Err(Error::CoreNotName(self.to_string())),
         }
     }
 }
@@ -154,7 +154,7 @@ impl TryFrom<Word> for i64 {
     fn try_from(w: Word) -> Result<Self, Self::Error> {
         match w {
             Word::Num(n) => Ok(n),
-            _ => Err(Error::NaN(w)),
+            _ => Err(Error::NaN(w.to_string())),
         }
     }
 }
@@ -199,7 +199,7 @@ impl Machine {
         self.stack
             .borrow_mut()
             .pop()
-            .ok_or_else(|| Error::Small(w.clone(), required, stack_len))
+            .ok_or_else(|| Error::Small(w.to_string(), required, stack_len))
     }
     fn eval(&self, t: &Word) -> Result<(), Error> {
         match t {
