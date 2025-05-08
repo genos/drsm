@@ -19,8 +19,7 @@ pub enum ReplError {
 }
 
 fn main() -> Result<(), ReplError> {
-    let c = Config::builder().edit_mode(EditMode::Vi).build();
-    let mut r = DefaultEditor::with_config(c).map_err(ReplError::Readline)?;
+    let mut r = DefaultEditor::with_config(Config::builder().edit_mode(EditMode::Vi).build())?;
     let m = Machine::default();
     println!(
         r"
@@ -37,7 +36,7 @@ fn main() -> Result<(), ReplError> {
     loop {
         match r.readline(">  ") {
             Ok(l) => {
-                r.add_history_entry(&l).map_err(ReplError::Readline)?;
+                r.add_history_entry(&l)?;
                 match m.read_eval(&l) {
                     Ok(()) => {}
                     Err(e) => eprintln!("{e}"),
@@ -56,7 +55,6 @@ fn main() -> Result<(), ReplError> {
         }
         println!("{m}");
     }
-    r.save_history("history.txt")
-        .map_err(ReplError::Readline)?;
+    r.save_history("history.txt")?;
     Ok(())
 }
