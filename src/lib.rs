@@ -71,7 +71,7 @@ enum Token<'source> {
 
 /// The words upon which our stack machine works.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Word {
+enum Word {
     /// Pop an item off the stack.
     Pop,
     /// Swap the top two elements of the stack.
@@ -142,8 +142,8 @@ impl TryFrom<Token<'_>> for Word {
 impl Word {
     fn into_name(self) -> Result<String, Error> {
         match self {
-            Self::Num(n) => Err(Error::NumNotName(n)),
             Self::Custom(w) => Ok(w),
+            Self::Num(n) => Err(Error::NumNotName(n)),
             _ => Err(Error::CoreNotName(self.to_string())),
         }
     }
@@ -195,6 +195,34 @@ impl fmt::Display for Machine {
 }
 
 impl Machine {
+    /// Read a string & evaluate it.
+    ///
+    /// # Errors
+    /// If something goes wrong in lexing or evaluation.
+    pub fn read_eval(&self, s: &str) -> Result<(), Error> {
+        let mut ts = Token::lexer(s).collect::<Result<Vec<_>, _>>()?.into_iter();
+        while let Some(t) = ts.next() {
+            match t {
+                Token::Def => {
+                    let k = ts
+                        .next()
+                        .ok_or(Error::DefName)
+                        .and_then(Word::try_from)
+                        .and_then(Word::into_name)?;
+                    let us = ts.map(Word::try_from).collect::<Result<Vec<_>, _>>()?;
+                    if us.is_empty() {
+                        return Err(Error::DefBody);
+                    } else if us.iter().any(|u| u.to_string() == k) {
+                        return Err(Error::SelfRef(k));
+                    }
+                    let _ = self.env.borrow_mut().insert(k, us);
+                    break;
+                }
+                _ => self.eval(&Word::try_from(t)?)?,
+            }
+        }
+        Ok(())
+    }
     fn pop(&self, w: &Word, required: usize, stack_len: usize) -> Result<Word, Error> {
         self.stack
             .borrow_mut()
@@ -255,34 +283,6 @@ impl Machine {
                     }
                 }
             },
-        }
-        Ok(())
-    }
-    /// Read a string & evaluate it.
-    ///
-    /// # Errors
-    /// If something goes wrong in lexing or evaluation.
-    pub fn read_eval(&self, s: &str) -> Result<(), Error> {
-        let mut ts = Token::lexer(s).collect::<Result<Vec<_>, _>>()?.into_iter();
-        while let Some(t) = ts.next() {
-            match t {
-                Token::Def => {
-                    let k = ts
-                        .next()
-                        .ok_or(Error::DefName)
-                        .and_then(Word::try_from)
-                        .and_then(Word::into_name)?;
-                    let us = ts.map(Word::try_from).collect::<Result<Vec<_>, _>>()?;
-                    if us.is_empty() {
-                        return Err(Error::DefBody);
-                    } else if us.iter().any(|u| u.to_string() == k) {
-                        return Err(Error::SelfRef(k));
-                    }
-                    let _ = self.env.borrow_mut().insert(k, us);
-                    break;
-                }
-                _ => self.eval(&Word::try_from(t)?)?,
-            }
         }
         Ok(())
     }
