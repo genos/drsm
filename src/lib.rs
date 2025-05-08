@@ -231,7 +231,6 @@ impl Machine {
     }
     fn eval(&self, t: &Word) -> Result<(), Error> {
         match t {
-            Word::Num(_) => self.stack.borrow_mut().push(t.clone()),
             Word::Pop => self.pop(t, 1, 0).map(|_| ())?,
             Word::Swap => {
                 let x = self.pop(t, 2, 0)?;
@@ -275,6 +274,7 @@ impl Machine {
                 let z = self.pop(t, 3, 2)?;
                 self.stack.borrow_mut().push(if x == 0 { y } else { z });
             }
+            Word::Num(_) => self.stack.borrow_mut().push(t.clone()),
             Word::Custom(w) => match self.env.borrow().get(w) {
                 None => return Err(Error::Unknown(w.to_string())),
                 Some(vs) => {
