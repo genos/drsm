@@ -142,7 +142,7 @@ impl Word {
     fn into_name(self) -> Result<String, Error> {
         match self {
             Self::Num(n) => Err(Error::NumNotName(n)),
-            Self::Custom(w) => Ok(w.to_string()),
+            Self::Custom(w) => Ok(w),
             _ => Ok(self.to_string()),
         }
     }
