@@ -194,11 +194,11 @@ impl fmt::Display for Machine {
 }
 
 impl Machine {
-    fn pop(&self, t: &Word, required: usize, stack_len: usize) -> Result<Word, Error> {
+    fn pop(&self, w: &Word, required: usize, stack_len: usize) -> Result<Word, Error> {
         self.stack
             .borrow_mut()
             .pop()
-            .ok_or_else(|| Error::Small(t.clone(), required, stack_len))
+            .ok_or_else(|| Error::Small(w.clone(), required, stack_len))
     }
     fn eval(&self, t: &Word) -> Result<(), Error> {
         match t {
