@@ -6,7 +6,7 @@
 #![deny(unsafe_code)]
 use indexmap::IndexMap;
 use logos::Logos;
-use std::{cell::RefCell, convert::TryFrom, fmt, num::ParseIntError};
+use std::{cell::RefCell, convert::TryFrom, fmt};
 
 /// Our Error type.
 #[derive(Clone, Debug, Default, PartialEq, Eq, thiserror::Error)]
@@ -59,10 +59,10 @@ pub enum Token<'source> {
     #[regex(r"(pop|swap|dup|add|sub|mul|div|mod|zero)")]
     Core(&'source str),
     /// An integer in decimal notation.
-    #[regex(r"-?[0-9]+", |lex| lex.slice().parse().map_err(|e: ParseIntError| Error::Parsing(e.to_string())))]
+    #[regex(r"-?[0-9]+", |lex| lex.slice().parse::<i64>().map_err(|e| Error::Parsing(e.to_string())))]
     Num(i64),
     /// An integer in hexadecimal notation.
-    #[regex(r"#[0-9a-fA-F]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16).map_err(|e: ParseIntError| Error::Parsing(e.to_string())))]
+    #[regex(r"#[0-9a-fA-F]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16).map_err(|e| Error::Parsing(e.to_string())))]
     Hex(i64),
     /// A (possibly unknown) custom token.
     #[regex(r"\S+", priority = 0)]
