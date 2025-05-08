@@ -37,7 +37,7 @@ fn main() -> Result<(), ReplError> {
     loop {
         match rl.readline(">  ") {
             Ok(l) => {
-                rl.add_history_entry(l.as_str()).map_err(ReplError::Readline)?;
+                rl.add_history_entry(&l).map_err(ReplError::Readline)?;
                 match m.read_eval(&l) {
                     Ok(()) => {}
                     Err(e) => eprintln!("{e}"),
