@@ -28,7 +28,7 @@ enum Command {
         #[arg(short, long, default_value_t = Mode::Vi)]
         edit_mode: Mode,
     },
-    #[command(about = "execute the commands in a given file", arg_required_else_help = true)]
+    #[command(about = "execute the commands in a file")]
     Run { file: PathBuf },
 }
 
@@ -105,16 +105,14 @@ fn main() -> Result<(), Error> {
             }
             r.save_history("history.txt")?;
         }
-        Command::Run { file } => match File::open(file) {
-            Ok(f) => {
-                let m = Machine::default();
-                for line in BufReader::new(f).lines() {
-                    m.read_eval(&line?)?;
-                    println!("{m}");
-                }
+        Command::Run { file } => {
+            let f = File::open(file)?;
+            let m = Machine::default();
+            for line in BufReader::new(f).lines() {
+                m.read_eval(&line?)?;
             }
-            Err(e) => eprintln!("{e}"),
-        },
+            println!("{m}");
+        }
     }
     Ok(())
 }
