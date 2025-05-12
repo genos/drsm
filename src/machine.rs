@@ -68,17 +68,25 @@ impl Machine {
         Ok(())
     }
     fn eval(&mut self, w: &Word) -> Result<(), Error> {
+        self.check(w)?;
+        eval_inner(&self.env, &mut self.stack, w)
+    }
+    fn check(&self, w: &Word) -> Result<(), Error> {
+        let s = self.stack.len();
         let r = match w {
             Word::Num(_) | Word::Custom(_) => 0,
             Word::Pop | Word::Dup => 1,
             Word::Swap | Word::Add | Word::Sub | Word::Mul | Word::Div | Word::Mod => 2,
             Word::Zero => 3,
         };
-        let s = self.stack.len();
         if s < r {
             Err(Error::Small(w.to_string(), r, s))
+        } else if (*w == Word::Div || *w == Word::Mod) && self.stack[s - 2] == 0 {
+            Err(Error::NNZ(w.to_string()))
+        } else if matches!(w, Word::Custom(_)) && !self.env.contains_key(&w.to_string()) {
+            Err(Error::Unknown(w.to_string()))
         } else {
-            eval_inner(&self.env, &mut self.stack, w)
+            Ok(())
         }
     }
 }
@@ -101,7 +109,6 @@ fn eval_inner(
             stack.push(y);
         }
         Word::Dup => {
-            dbg!("HI THERE", &env, &stack, &w);
             let x = stack.pop().expect("Internal error @ dup");
             stack.push(x);
             stack.push(x);
@@ -124,21 +131,11 @@ fn eval_inner(
         Word::Div => {
             let x = stack.pop().expect("Internal error @ div 1");
             let y = stack.pop().expect("Internal error @ div 2");
-            if y == 0 {
-                stack.push(y);
-                stack.push(x);
-                return Err(Error::NNZ(w.to_string()));
-            }
             stack.push(x.wrapping_div(y));
         }
         Word::Mod => {
             let x = stack.pop().expect("Internal error @ mod 1");
             let y = stack.pop().expect("Internal error @ mod 2");
-            if y == 0 {
-                stack.push(y);
-                stack.push(x);
-                return Err(Error::NNZ(w.to_string()));
-            }
             stack.push(x.wrapping_rem(y));
         }
         Word::Zero => {
