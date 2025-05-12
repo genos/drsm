@@ -146,10 +146,10 @@ mod tests {
 
     prop_state_machine! {
         #[test]
-        fn state_machine_testing(sequential 1..20 => Machine);
+        fn state_machine_testing(sequential 0..100 => Machine);
     }
 
-    #[derive(Debug, Clone, Copy)]
+    #[derive(Debug, Clone, Copy, proptest_derive::Arbitrary)]
     pub enum Op {
         Push(i64),
         Pop,
@@ -189,7 +189,6 @@ mod tests {
             Just(Vec::new()).boxed()
         }
         fn preconditions(state: &Self::State, transition: &Self::Transition) -> bool {
-            dbg!((&state, &transition));
             match transition {
                 Op::Push(_) => true,
                 Op::Pop | Op::Dup => !state.is_empty(),
@@ -201,19 +200,7 @@ mod tests {
             }
         }
         fn transitions(_: &Self::State) -> BoxedStrategy<Self::Transition> {
-            prop_oneof![
-                any::<i64>().prop_map(Op::Push),
-                Just(Op::Pop),
-                Just(Op::Swap),
-                Just(Op::Dup),
-                Just(Op::Add),
-                Just(Op::Sub),
-                Just(Op::Mul),
-                Just(Op::Div),
-                Just(Op::Mod),
-                Just(Op::Zero),
-            ]
-            .boxed()
+            any::<Self::Transition>().boxed()
         }
         fn apply(mut state: Self::State, transition: &Self::Transition) -> Self::State {
             match transition {
