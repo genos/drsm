@@ -83,6 +83,7 @@ impl Machine {
     }
 }
 
+/// Broken out to untangle mutability concerns.
 fn eval_inner(
     env: &IndexMap<String, Vec<Word>>,
     stack: &mut Vec<i64>,
