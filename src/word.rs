@@ -66,7 +66,7 @@ impl TryFrom<Token<'_>> for Word {
                 _ => Err(Error::Unknown(w.to_string())),
             },
             Token::Num(n) | Token::Hex(n) => Ok(Self::Num(n)),
-            Token::Custom(w) => Ok(Self::Custom(w.into())),
+            Token::Custom(w) => Ok(Self::Custom(w.to_string())),
         }
     }
 }
@@ -97,5 +97,66 @@ impl Word {
             Self::Num(n) => Err(Error::NumNotName(n)),
             _ => Err(Error::CoreNotName(self.to_string())),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{super::token::tests::token, *};
+    use logos::Logos;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn from_token(t in token()) {
+            let w = Word::try_from(t.clone());
+            prop_assert_eq!(w.is_ok(), t != Token::Def);
+        }
+        #[test]
+        fn self_eq(w in word()) {
+            prop_assert_eq!(w.clone(), w);
+        }
+        #[test]
+        #[allow(clippy::cmp_owned)]
+        fn str_eq(w in word(), s in r"\S+") {
+            prop_assert_eq!(w == s, w.to_string() == s);
+        }
+        #[test]
+        fn roundtrip(w in word()) {
+            let s = w.to_string();
+            let ts = Token::lexer(&s).collect::<Result<Vec<Token>, _>>();
+            prop_assert!(ts.is_ok());
+            let mut ts = ts.unwrap();
+            prop_assert_eq!(ts.len(), 1);
+            let w2 = Word::try_from(ts.pop().unwrap());
+            prop_assert!(w2.is_ok());
+            prop_assert_eq!(w, w2.unwrap());
+        }
+        #[test]
+        fn into_num(w in word()) {
+            let n = i64::try_from(w.clone());
+            prop_assert_eq!(n.is_ok(), w == Word::Num(n.unwrap_or_default()));
+        }
+        #[test]
+        fn into_name(w in word()) {
+            let n = w.clone().into_name();
+            prop_assert_eq!(n.is_ok(), w == Word::Custom(n.unwrap_or_default()));
+        }
+    }
+
+    pub fn word() -> impl Strategy<Value = Word> {
+        prop_oneof![
+            Just(Word::Pop),
+            Just(Word::Swap),
+            Just(Word::Dup),
+            Just(Word::Add),
+            Just(Word::Sub),
+            Just(Word::Mul),
+            Just(Word::Div),
+            Just(Word::Mod),
+            Just(Word::Zero),
+            any::<i64>().prop_map(Word::Num),
+            r"[a-zA-Z]+".prop_map(Word::Custom)
+        ]
     }
 }
