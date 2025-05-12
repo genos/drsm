@@ -32,7 +32,8 @@ enum Command {
     Run { file: PathBuf },
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 enum Mode {
     Vi,
     Emacs,
@@ -115,4 +116,16 @@ fn main() -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+    proptest! {
+        #[test]
+        fn mode_roundtrip(m: Mode) {
+            prop_assert_eq!(m, ValueEnum::from_str(&m.to_string(), false).unwrap());
+        }
+    }
 }
