@@ -67,6 +67,14 @@ impl Machine {
         }
         Ok(())
     }
+    fn check(&self, w: &Word, required: usize) -> Result<(), Error> {
+        let s = self.stack.borrow().len();
+        if s < required {
+            Err(Error::Small(w.to_string(), required, s))
+        } else {
+            Ok(())
+        }
+    }
     fn pop(&self, w: &Word, required: usize, stack_len: usize) -> Result<i64, Error> {
         self.stack
             .borrow_mut()
@@ -75,34 +83,43 @@ impl Machine {
     }
     fn eval(&self, w: &Word) -> Result<(), Error> {
         match w {
-            Word::Pop => self.pop(w, 1, 0).map(|_| ())?,
+            Word::Pop => {
+                self.check(w, 1)?;
+                self.pop(w, 1, 0).map(|_| ())?;
+            }
             Word::Swap => {
+                self.check(w, 2)?;
                 let x = self.pop(w, 2, 0)?;
                 let y = self.pop(w, 2, 1)?;
                 self.stack.borrow_mut().push(x);
                 self.stack.borrow_mut().push(y);
             }
             Word::Dup => {
+                self.check(w, 1)?;
                 let x = self.pop(w, 1, 0)?;
-                self.stack.borrow_mut().push(x.clone());
+                self.stack.borrow_mut().push(x);
                 self.stack.borrow_mut().push(x);
             }
             Word::Add => {
+                self.check(w, 2)?;
                 let x = self.pop(w, 2, 0)?;
                 let y = self.pop(w, 2, 1)?;
                 self.stack.borrow_mut().push(x.wrapping_add(y));
             }
             Word::Sub => {
+                self.check(w, 2)?;
                 let x = self.pop(w, 2, 0)?;
                 let y = self.pop(w, 2, 1)?;
                 self.stack.borrow_mut().push(x.wrapping_sub(y));
             }
             Word::Mul => {
+                self.check(w, 2)?;
                 let x = self.pop(w, 2, 0)?;
                 let y = self.pop(w, 2, 1)?;
                 self.stack.borrow_mut().push(x.wrapping_mul(y));
             }
             Word::Div => {
+                self.check(w, 2)?;
                 let x = self.pop(w, 2, 0)?;
                 let y = self.pop(w, 2, 1)?;
                 if y == 0 {
@@ -111,6 +128,7 @@ impl Machine {
                 self.stack.borrow_mut().push(x.wrapping_div(y));
             }
             Word::Mod => {
+                self.check(w, 2)?;
                 let x = self.pop(w, 2, 0)?;
                 let y = self.pop(w, 2, 1)?;
                 if y == 0 {
@@ -119,6 +137,7 @@ impl Machine {
                 self.stack.borrow_mut().push(x.wrapping_rem(y));
             }
             Word::Zero => {
+                self.check(w, 3)?;
                 let x = self.pop(w, 3, 0)?;
                 let y = self.pop(w, 3, 1)?;
                 let z = self.pop(w, 3, 2)?;
@@ -269,13 +288,7 @@ mod tests {
             let w = Word::from(transition);
             sut.eval(&w).unwrap_or_else(|_| panic!("{w}"));
             for (x, y) in sut.stack.borrow().iter().zip(r#ref.iter()) {
-                let n = i64::try_from(x.clone());
-                assert!(
-                    n.is_ok(),
-                    "We only push numbers, but trying to convert back yielded {n:?}"
-                );
-                let n = n.unwrap_or_default();
-                assert_eq!(n, *y, "Different values in stacks: sut={n}, ref={y}");
+                assert_eq!(x, y, "Different values in stacks: sut={x}, ref={y}");
             }
             sut
         }
