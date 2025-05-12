@@ -84,6 +84,7 @@ impl Machine {
 }
 
 /// Broken out to untangle mutability concerns.
+/// Full of `stack.pop().expect(…)` because this should only be called from within `Machine::eval`.
 fn eval_inner(
     env: &IndexMap<String, Vec<Word>>,
     stack: &mut Vec<i64>,
