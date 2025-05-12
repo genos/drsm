@@ -121,8 +121,8 @@ fn eval_inner(
             stack.push(x.wrapping_mul(y));
         }
         Word::Div => {
-            let x = stack.pop().expect("Internall error @ div 1");
-            let y = stack.pop().expect("Internall error @ div 2");
+            let x = stack.pop().expect("Internal error @ div 1");
+            let y = stack.pop().expect("Internal error @ div 2");
             if y == 0 {
                 stack.push(y);
                 stack.push(x);
@@ -285,7 +285,7 @@ mod tests {
             transition: <Self::Reference as ReferenceStateMachine>::Transition,
         ) -> Self::SystemUnderTest {
             let w = Word::from(transition);
-            sut.eval(&w).unwrap_or_else(|_| panic!("{w}"));
+            sut.eval(&w).unwrap_or_else(|e| panic!("{w} raised an error: {e}"));
             for (x, y) in sut.stack.iter().zip(r#ref.iter()) {
                 assert_eq!(x, y, "Different values in stacks: sut={x}, ref={y}");
             }
