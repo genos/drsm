@@ -146,7 +146,7 @@ mod tests {
 
     prop_state_machine! {
         #[test]
-        fn state_machine_testing(sequential 0..100 => Machine);
+        fn state_machine_testing(sequential 1..100 => Machine);
     }
 
     #[derive(Debug, Clone, Copy, proptest_derive::Arbitrary)]
