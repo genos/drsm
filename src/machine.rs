@@ -117,6 +117,8 @@ impl Machine {
                 let x = self.stack.borrow_mut().pop().expect("Internall error @ div 1");
                 let y = self.stack.borrow_mut().pop().expect("Internall error @ div 2");
                 if y == 0 {
+                    self.stack.borrow_mut().push(y);
+                    self.stack.borrow_mut().push(x);
                     return Err(Error::NNZ(w.to_string()));
                 }
                 self.stack.borrow_mut().push(x.wrapping_div(y));
@@ -126,6 +128,8 @@ impl Machine {
                 let x = self.stack.borrow_mut().pop().expect("Internal error @ mod 1");
                 let y = self.stack.borrow_mut().pop().expect("Internal error @ mod 2");
                 if y == 0 {
+                    self.stack.borrow_mut().push(y);
+                    self.stack.borrow_mut().push(x);
                     return Err(Error::NNZ(w.to_string()));
                 }
                 self.stack.borrow_mut().push(x.wrapping_rem(y));
