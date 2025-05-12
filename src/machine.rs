@@ -75,53 +75,47 @@ impl Machine {
             Ok(())
         }
     }
-    fn pop(&self, w: &Word, required: usize, stack_len: usize) -> Result<i64, Error> {
-        self.stack
-            .borrow_mut()
-            .pop()
-            .ok_or_else(|| Error::Small(w.to_string(), required, stack_len))
-    }
     fn eval(&self, w: &Word) -> Result<(), Error> {
         match w {
             Word::Pop => {
                 self.check(w, 1)?;
-                self.pop(w, 1, 0).map(|_| ())?;
+                self.stack.borrow_mut().pop().expect("Internal error @ pop");
             }
             Word::Swap => {
                 self.check(w, 2)?;
-                let x = self.pop(w, 2, 0)?;
-                let y = self.pop(w, 2, 1)?;
+                let x = self.stack.borrow_mut().pop().expect("Internal error @ swap 1");
+                let y = self.stack.borrow_mut().pop().expect("Internal error @ swap 2");
                 self.stack.borrow_mut().push(x);
                 self.stack.borrow_mut().push(y);
             }
             Word::Dup => {
                 self.check(w, 1)?;
-                let x = self.pop(w, 1, 0)?;
+                let x = self.stack.borrow_mut().pop().expect("Internal error @ dup");
                 self.stack.borrow_mut().push(x);
                 self.stack.borrow_mut().push(x);
             }
             Word::Add => {
                 self.check(w, 2)?;
-                let x = self.pop(w, 2, 0)?;
-                let y = self.pop(w, 2, 1)?;
+                let x = self.stack.borrow_mut().pop().expect("Internal error @ add 1");
+                let y = self.stack.borrow_mut().pop().expect("Internal error @ add 2");
                 self.stack.borrow_mut().push(x.wrapping_add(y));
             }
             Word::Sub => {
                 self.check(w, 2)?;
-                let x = self.pop(w, 2, 0)?;
-                let y = self.pop(w, 2, 1)?;
+                let x = self.stack.borrow_mut().pop().expect("Internal error @ sub 1");
+                let y = self.stack.borrow_mut().pop().expect("Internal error @ sub 2");
                 self.stack.borrow_mut().push(x.wrapping_sub(y));
             }
             Word::Mul => {
                 self.check(w, 2)?;
-                let x = self.pop(w, 2, 0)?;
-                let y = self.pop(w, 2, 1)?;
+                let x = self.stack.borrow_mut().pop().expect("Internal error @ mul 1");
+                let y = self.stack.borrow_mut().pop().expect("Internal error @ mul 2");
                 self.stack.borrow_mut().push(x.wrapping_mul(y));
             }
             Word::Div => {
                 self.check(w, 2)?;
-                let x = self.pop(w, 2, 0)?;
-                let y = self.pop(w, 2, 1)?;
+                let x = self.stack.borrow_mut().pop().expect("Internall error @ div 1");
+                let y = self.stack.borrow_mut().pop().expect("Internall error @ div 2");
                 if y == 0 {
                     return Err(Error::NNZ(w.to_string()));
                 }
@@ -129,8 +123,8 @@ impl Machine {
             }
             Word::Mod => {
                 self.check(w, 2)?;
-                let x = self.pop(w, 2, 0)?;
-                let y = self.pop(w, 2, 1)?;
+                let x = self.stack.borrow_mut().pop().expect("Internal error @ mod 1");
+                let y = self.stack.borrow_mut().pop().expect("Internal error @ mod 2");
                 if y == 0 {
                     return Err(Error::NNZ(w.to_string()));
                 }
@@ -138,9 +132,9 @@ impl Machine {
             }
             Word::Zero => {
                 self.check(w, 3)?;
-                let x = self.pop(w, 3, 0)?;
-                let y = self.pop(w, 3, 1)?;
-                let z = self.pop(w, 3, 2)?;
+                let x = self.stack.borrow_mut().pop().expect("Internal error at zero? 1");
+                let y = self.stack.borrow_mut().pop().expect("Internal error at zero? 2");
+                let z = self.stack.borrow_mut().pop().expect("Internal error at zero? 3");
                 self.stack.borrow_mut().push(if x == 0 { y } else { z });
             }
             Word::Num(n) => self.stack.borrow_mut().push(*n),
