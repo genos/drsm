@@ -212,9 +212,7 @@ mod tests {
                 Op::Push(_) => true,
                 Op::Pop | Op::Dup => !state.is_empty(),
                 Op::Swap | Op::Add | Op::Sub | Op::Mul => state.len() > 1,
-                Op::Div | Op::Mod => {
-                    state.len() > 1 && state[state.len() - 1] > 0 && state[state.len() - 2] > 0
-                }
+                Op::Div | Op::Mod => state.len() > 1 && state[state.len() - 2] > 0,
                 Op::Zero => state.len() > 2,
             }
         }
