@@ -144,14 +144,15 @@ impl Machine {
                 self.stack.borrow_mut().push(if x == 0 { y } else { z });
             }
             Word::Num(n) => self.stack.borrow_mut().push(*n),
-            Word::Custom(w) => match self.env.get(w) {
-                None => return Err(Error::Unknown(w.to_string())),
-                Some(vs) => {
-                    for v in vs {
-                        self.eval(v)?;
-                    }
+            Word::Custom(w) => {
+                for v in self
+                    .env
+                    .get(w)
+                    .ok_or_else(|| Error::Unknown(w.to_string()))?
+                {
+                    self.eval(v)?;
                 }
-            },
+            }
         }
         Ok(())
     }
