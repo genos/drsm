@@ -84,7 +84,7 @@ fn main() -> Result<(), Error> {
             if r.load_history("history.txt").is_err() {
                 eprintln!("No previous history.");
             }
-            let m = Machine::default();
+            let mut m = Machine::default();
             loop {
                 match r.readline(">  ") {
                     Ok(l) => {
@@ -107,7 +107,7 @@ fn main() -> Result<(), Error> {
         }
         Command::Run { file } => {
             let f = File::open(file)?;
-            let m = Machine::default();
+            let mut m = Machine::default();
             for line in BufReader::new(f).lines() {
                 m.read_eval(&line?)?;
             }

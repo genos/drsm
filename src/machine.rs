@@ -6,7 +6,7 @@ use std::{cell::RefCell, convert::TryFrom, fmt};
 /// The main data structure: a stack machine with an environment of local definitions.
 #[derive(Default)]
 pub struct Machine {
-    env: RefCell<IndexMap<String, Vec<Word>>>,
+    env: IndexMap<String, Vec<Word>>,
     stack: RefCell<Vec<i64>>,
 }
 
@@ -27,7 +27,7 @@ impl fmt::Display for Machine {
             write!(f, " {t}")?;
         }
         f.write_str("\nenv:")?;
-        for k in self.env.borrow().keys() {
+        for k in self.env.keys() {
             write!(f, " {k}")?;
         }
         f.write_str("\nstack: [")?;
@@ -43,7 +43,7 @@ impl Machine {
     ///
     /// # Errors
     /// If something goes wrong in lexing or evaluation.
-    pub fn read_eval(&self, s: &str) -> Result<(), Error> {
+    pub fn read_eval(&mut self, s: &str) -> Result<(), Error> {
         let mut ts = Token::lexer(s).collect::<Result<Vec<_>, _>>()?.into_iter();
         while let Some(t) = ts.next() {
             match t {
@@ -59,7 +59,7 @@ impl Machine {
                     } else if us.iter().any(|u| u == &k) {
                         return Err(Error::SelfRef(k));
                     }
-                    let _ = self.env.borrow_mut().insert(k, us);
+                    let _ = self.env.insert(k, us);
                     break;
                 }
                 _ => self.eval(&Word::try_from(t)?)?,
@@ -144,7 +144,7 @@ impl Machine {
                 self.stack.borrow_mut().push(if x == 0 { y } else { z });
             }
             Word::Num(n) => self.stack.borrow_mut().push(*n),
-            Word::Custom(w) => match self.env.borrow().get(w) {
+            Word::Custom(w) => match self.env.get(w) {
                 None => return Err(Error::Unknown(w.to_string())),
                 Some(vs) => {
                     for v in vs {
