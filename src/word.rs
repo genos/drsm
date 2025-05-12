@@ -71,16 +71,6 @@ impl TryFrom<Token<'_>> for Word {
     }
 }
 
-impl TryFrom<Word> for i64 {
-    type Error = Error;
-    fn try_from(w: Word) -> Result<Self, Self::Error> {
-        match w {
-            Word::Num(n) => Ok(n),
-            _ => Err(Error::NaN(w.to_string())),
-        }
-    }
-}
-
 impl PartialEq<String> for Word {
     fn eq(&self, s: &String) -> bool {
         match self {
@@ -131,11 +121,6 @@ mod tests {
             let w2 = Word::try_from(ts.pop().unwrap());
             prop_assert!(w2.is_ok());
             prop_assert_eq!(w, w2.unwrap());
-        }
-        #[test]
-        fn into_num(w in word()) {
-            let n = i64::try_from(w.clone());
-            prop_assert_eq!(n.is_ok(), w == Word::Num(n.unwrap_or_default()));
         }
         #[test]
         fn into_name(w in word()) {

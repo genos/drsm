@@ -7,7 +7,7 @@ use std::{cell::RefCell, convert::TryFrom, fmt};
 #[derive(Default)]
 pub struct Machine {
     env: RefCell<IndexMap<String, Vec<Word>>>,
-    stack: RefCell<Vec<Word>>,
+    stack: RefCell<Vec<i64>>,
 }
 
 impl fmt::Display for Machine {
@@ -67,7 +67,7 @@ impl Machine {
         }
         Ok(())
     }
-    fn pop(&self, w: &Word, required: usize, stack_len: usize) -> Result<Word, Error> {
+    fn pop(&self, w: &Word, required: usize, stack_len: usize) -> Result<i64, Error> {
         self.stack
             .borrow_mut()
             .pop()
@@ -88,43 +88,43 @@ impl Machine {
                 self.stack.borrow_mut().push(x);
             }
             Word::Add => {
-                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
-                self.stack.borrow_mut().push(Word::Num(x.wrapping_add(y)));
+                let x = self.pop(w, 2, 0)?;
+                let y = self.pop(w, 2, 1)?;
+                self.stack.borrow_mut().push(x.wrapping_add(y));
             }
             Word::Sub => {
-                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
-                self.stack.borrow_mut().push(Word::Num(x.wrapping_sub(y)));
+                let x = self.pop(w, 2, 0)?;
+                let y = self.pop(w, 2, 1)?;
+                self.stack.borrow_mut().push(x.wrapping_sub(y));
             }
             Word::Mul => {
-                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
-                self.stack.borrow_mut().push(Word::Num(x.wrapping_mul(y)));
+                let x = self.pop(w, 2, 0)?;
+                let y = self.pop(w, 2, 1)?;
+                self.stack.borrow_mut().push(x.wrapping_mul(y));
             }
             Word::Div => {
-                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
+                let x = self.pop(w, 2, 0)?;
+                let y = self.pop(w, 2, 1)?;
                 if y == 0 {
                     return Err(Error::NNZ(w.to_string()));
                 }
-                self.stack.borrow_mut().push(Word::Num(x.wrapping_div(y)));
+                self.stack.borrow_mut().push(x.wrapping_div(y));
             }
             Word::Mod => {
-                let x = self.pop(w, 2, 0).and_then(i64::try_from)?;
-                let y = self.pop(w, 2, 1).and_then(i64::try_from)?;
+                let x = self.pop(w, 2, 0)?;
+                let y = self.pop(w, 2, 1)?;
                 if y == 0 {
                     return Err(Error::NNZ(w.to_string()));
                 }
-                self.stack.borrow_mut().push(Word::Num(x.wrapping_rem(y)));
+                self.stack.borrow_mut().push(x.wrapping_rem(y));
             }
             Word::Zero => {
-                let x = self.pop(w, 3, 0).and_then(i64::try_from)?;
+                let x = self.pop(w, 3, 0)?;
                 let y = self.pop(w, 3, 1)?;
                 let z = self.pop(w, 3, 2)?;
                 self.stack.borrow_mut().push(if x == 0 { y } else { z });
             }
-            Word::Num(_) => self.stack.borrow_mut().push(w.clone()),
+            Word::Num(n) => self.stack.borrow_mut().push(*n),
             Word::Custom(w) => match self.env.borrow().get(w) {
                 None => return Err(Error::Unknown(w.to_string())),
                 Some(vs) => {
