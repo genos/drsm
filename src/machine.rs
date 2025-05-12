@@ -69,10 +69,10 @@ impl Machine {
     }
     fn eval(&mut self, w: &Word) -> Result<(), Error> {
         let r = match w {
+            Word::Num(_) | Word::Custom(_) => 0,
             Word::Pop | Word::Dup => 1,
             Word::Swap | Word::Add | Word::Sub | Word::Mul | Word::Div | Word::Mod => 2,
             Word::Zero => 3,
-            _ => 0,
         };
         let s = self.stack.len();
         if s < r {
@@ -285,7 +285,8 @@ mod tests {
             transition: <Self::Reference as ReferenceStateMachine>::Transition,
         ) -> Self::SystemUnderTest {
             let w = Word::from(transition);
-            sut.eval(&w).unwrap_or_else(|e| panic!("{w} raised an error: {e}"));
+            sut.eval(&w)
+                .unwrap_or_else(|e| panic!("{w} raised an error: {e}"));
             for (x, y) in sut.stack.iter().zip(r#ref.iter()) {
                 assert_eq!(x, y, "Different values in stacks: sut={x}, ref={y}");
             }
