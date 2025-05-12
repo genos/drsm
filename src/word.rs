@@ -91,7 +91,7 @@ impl Word {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::{super::token::tests::token, *};
     use logos::Logos;
     use proptest::prelude::*;
