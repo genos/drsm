@@ -163,7 +163,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn check_implies_ok(ws in prop::collection::vec(word(), 1..100)) {
+        fn check_implies_ok(ws in prop::collection::vec(word(), 1..200)) {
             let mut m = Machine::default();
             for w in ws {
                 if m.check(&w).is_ok() {
