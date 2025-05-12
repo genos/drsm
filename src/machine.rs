@@ -1,13 +1,13 @@
 use crate::{error::Error, token::Token, word::Word};
 use indexmap::IndexMap;
 use logos::Logos;
-use std::{cell::RefCell, convert::TryFrom, fmt};
+use std::{convert::TryFrom, fmt};
 
 /// The main data structure: a stack machine with an environment of local definitions.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Machine {
     env: IndexMap<String, Vec<Word>>,
-    stack: RefCell<Vec<i64>>,
+    stack: Vec<i64>,
 }
 
 impl fmt::Display for Machine {
@@ -31,7 +31,7 @@ impl fmt::Display for Machine {
             write!(f, " {k}")?;
         }
         f.write_str("\nstack: [")?;
-        for t in self.stack.borrow().iter().rev() {
+        for t in self.stack.iter().rev() {
             write!(f, " {t}")?;
         }
         f.write_str(" ]")
@@ -67,93 +67,92 @@ impl Machine {
         }
         Ok(())
     }
-    fn check(&self, w: &Word, required: usize) -> Result<(), Error> {
-        let s = self.stack.borrow().len();
-        if s < required {
-            Err(Error::Small(w.to_string(), required, s))
+    fn eval(&mut self, w: &Word) -> Result<(), Error> {
+        let r = match w {
+            Word::Pop | Word::Dup => 1,
+            Word::Swap | Word::Add | Word::Sub | Word::Mul | Word::Div | Word::Mod => 2,
+            Word::Zero => 3,
+            _ => 0,
+        };
+        let s = self.stack.len();
+        if s < r {
+            Err(Error::Small(w.to_string(), r, s))
         } else {
-            Ok(())
+            eval_inner(&self.env, &mut self.stack, w)
         }
     }
-    fn eval(&self, w: &Word) -> Result<(), Error> {
-        match w {
-            Word::Pop => {
-                self.check(w, 1)?;
-                self.stack.borrow_mut().pop().expect("Internal error @ pop");
+}
+
+fn eval_inner(
+    env: &IndexMap<String, Vec<Word>>,
+    stack: &mut Vec<i64>,
+    w: &Word,
+) -> Result<(), Error> {
+    match w {
+        Word::Pop => {
+            stack.pop().expect("Internal error @ pop");
+        }
+        Word::Swap => {
+            let x = stack.pop().expect("Internal error @ swap 1");
+            let y = stack.pop().expect("Internal error @ swap 2");
+            stack.push(x);
+            stack.push(y);
+        }
+        Word::Dup => {
+            dbg!("HI THERE", &env, &stack, &w);
+            let x = stack.pop().expect("Internal error @ dup");
+            stack.push(x);
+            stack.push(x);
+        }
+        Word::Add => {
+            let x = stack.pop().expect("Internal error @ add 1");
+            let y = stack.pop().expect("Internal error @ add 2");
+            stack.push(x.wrapping_add(y));
+        }
+        Word::Sub => {
+            let x = stack.pop().expect("Internal error @ sub 1");
+            let y = stack.pop().expect("Internal error @ sub 2");
+            stack.push(x.wrapping_sub(y));
+        }
+        Word::Mul => {
+            let x = stack.pop().expect("Internal error @ mul 1");
+            let y = stack.pop().expect("Internal error @ mul 2");
+            stack.push(x.wrapping_mul(y));
+        }
+        Word::Div => {
+            let x = stack.pop().expect("Internall error @ div 1");
+            let y = stack.pop().expect("Internall error @ div 2");
+            if y == 0 {
+                stack.push(y);
+                stack.push(x);
+                return Err(Error::NNZ(w.to_string()));
             }
-            Word::Swap => {
-                self.check(w, 2)?;
-                let x = self.stack.borrow_mut().pop().expect("Internal error @ swap 1");
-                let y = self.stack.borrow_mut().pop().expect("Internal error @ swap 2");
-                self.stack.borrow_mut().push(x);
-                self.stack.borrow_mut().push(y);
+            stack.push(x.wrapping_div(y));
+        }
+        Word::Mod => {
+            let x = stack.pop().expect("Internal error @ mod 1");
+            let y = stack.pop().expect("Internal error @ mod 2");
+            if y == 0 {
+                stack.push(y);
+                stack.push(x);
+                return Err(Error::NNZ(w.to_string()));
             }
-            Word::Dup => {
-                self.check(w, 1)?;
-                let x = self.stack.borrow_mut().pop().expect("Internal error @ dup");
-                self.stack.borrow_mut().push(x);
-                self.stack.borrow_mut().push(x);
-            }
-            Word::Add => {
-                self.check(w, 2)?;
-                let x = self.stack.borrow_mut().pop().expect("Internal error @ add 1");
-                let y = self.stack.borrow_mut().pop().expect("Internal error @ add 2");
-                self.stack.borrow_mut().push(x.wrapping_add(y));
-            }
-            Word::Sub => {
-                self.check(w, 2)?;
-                let x = self.stack.borrow_mut().pop().expect("Internal error @ sub 1");
-                let y = self.stack.borrow_mut().pop().expect("Internal error @ sub 2");
-                self.stack.borrow_mut().push(x.wrapping_sub(y));
-            }
-            Word::Mul => {
-                self.check(w, 2)?;
-                let x = self.stack.borrow_mut().pop().expect("Internal error @ mul 1");
-                let y = self.stack.borrow_mut().pop().expect("Internal error @ mul 2");
-                self.stack.borrow_mut().push(x.wrapping_mul(y));
-            }
-            Word::Div => {
-                self.check(w, 2)?;
-                let x = self.stack.borrow_mut().pop().expect("Internall error @ div 1");
-                let y = self.stack.borrow_mut().pop().expect("Internall error @ div 2");
-                if y == 0 {
-                    self.stack.borrow_mut().push(y);
-                    self.stack.borrow_mut().push(x);
-                    return Err(Error::NNZ(w.to_string()));
-                }
-                self.stack.borrow_mut().push(x.wrapping_div(y));
-            }
-            Word::Mod => {
-                self.check(w, 2)?;
-                let x = self.stack.borrow_mut().pop().expect("Internal error @ mod 1");
-                let y = self.stack.borrow_mut().pop().expect("Internal error @ mod 2");
-                if y == 0 {
-                    self.stack.borrow_mut().push(y);
-                    self.stack.borrow_mut().push(x);
-                    return Err(Error::NNZ(w.to_string()));
-                }
-                self.stack.borrow_mut().push(x.wrapping_rem(y));
-            }
-            Word::Zero => {
-                self.check(w, 3)?;
-                let x = self.stack.borrow_mut().pop().expect("Internal error at zero? 1");
-                let y = self.stack.borrow_mut().pop().expect("Internal error at zero? 2");
-                let z = self.stack.borrow_mut().pop().expect("Internal error at zero? 3");
-                self.stack.borrow_mut().push(if x == 0 { y } else { z });
-            }
-            Word::Num(n) => self.stack.borrow_mut().push(*n),
-            Word::Custom(w) => {
-                for v in self
-                    .env
-                    .get(w)
-                    .ok_or_else(|| Error::Unknown(w.to_string()))?
-                {
-                    self.eval(v)?;
-                }
+            stack.push(x.wrapping_rem(y));
+        }
+        Word::Zero => {
+            let x = stack.pop().expect("Internal error at zero? 1");
+            let y = stack.pop().expect("Internal error at zero? 2");
+            let z = stack.pop().expect("Internal error at zero? 3");
+            stack.push(if x == 0 { y } else { z });
+        }
+        Word::Num(n) => stack.push(*n),
+        Word::Custom(w) => {
+            for v in env.get(w).ok_or_else(|| Error::Unknown(w.to_string()))? {
+                eval_inner(env, stack, v)?;
             }
         }
-        Ok(())
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -280,13 +279,13 @@ mod tests {
             Self::default()
         }
         fn apply(
-            sut: Self::SystemUnderTest,
+            mut sut: Self::SystemUnderTest,
             r#ref: &<Self::Reference as ReferenceStateMachine>::State,
             transition: <Self::Reference as ReferenceStateMachine>::Transition,
         ) -> Self::SystemUnderTest {
             let w = Word::from(transition);
             sut.eval(&w).unwrap_or_else(|_| panic!("{w}"));
-            for (x, y) in sut.stack.borrow().iter().zip(r#ref.iter()) {
+            for (x, y) in sut.stack.iter().zip(r#ref.iter()) {
                 assert_eq!(x, y, "Different values in stacks: sut={x}, ref={y}");
             }
             sut
