@@ -107,9 +107,8 @@ fn main() -> Result<(), Error> {
             r.save_history("history.txt")?;
         }
         Command::Run { file } => {
-            let f = File::open(file)?;
             let mut m = Machine::default();
-            for line in BufReader::new(f).lines() {
+            for line in BufReader::new(File::open(file)?).lines() {
                 m.read_eval(&line?)?;
             }
             println!("{m}");
