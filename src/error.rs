@@ -1,4 +1,3 @@
-
 use std::num::ParseIntError;
 
 /// Our Error type.
@@ -38,4 +37,7 @@ pub enum Error {
     /// `def` needs a body, but none was supplied.
     #[error("`def` needs a body, but none was supplied.")]
     DefBody,
+    /// `{0}` requires its second operand be nonzero
+    #[error("`{0}` requires its second operand be nonzero")]
+    NNZ(String),
 }

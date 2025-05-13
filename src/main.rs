@@ -32,7 +32,7 @@ enum Command {
     Run { file: PathBuf },
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum Mode {
     Vi,
     Emacs,
@@ -84,7 +84,7 @@ fn main() -> Result<(), Error> {
             if r.load_history("history.txt").is_err() {
                 eprintln!("No previous history.");
             }
-            let m = Machine::default();
+            let mut m = Machine::default();
             loop {
                 match r.readline(">  ") {
                     Ok(l) => {
@@ -106,13 +106,29 @@ fn main() -> Result<(), Error> {
             r.save_history("history.txt")?;
         }
         Command::Run { file } => {
-            let f = File::open(file)?;
-            let m = Machine::default();
-            for line in BufReader::new(f).lines() {
+            let mut m = Machine::default();
+            for line in BufReader::new(File::open(file)?).lines() {
                 m.read_eval(&line?)?;
             }
             println!("{m}");
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn mode_roundtrip(m in mode()) {
+            prop_assert_eq!(m, ValueEnum::from_str(&m.to_string(), false).unwrap());
+        }
+    }
+
+    fn mode() -> impl Strategy<Value = Mode> {
+        prop_oneof![Just(Mode::Vi), Just(Mode::Emacs)]
+    }
 }
