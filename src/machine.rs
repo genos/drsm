@@ -68,7 +68,7 @@ impl Machine {
                     return Err(Error::SelfRef(k));
                 }
                 let _ = self.env.insert(k, us);
-                break;  // no need for `else` here
+                break; // no need for `else` here
             }
             self.eval(&Word::try_from(t)?)?;
         }
@@ -76,11 +76,11 @@ impl Machine {
     }
     fn eval(&mut self, word: &Word) -> Result<(), Error> {
         check(&self.env, &self.stack, word)?;
-        eval_inner(&self.env, &mut self.stack, word);
-        Ok(())
+        eval_inner(&self.env, &mut self.stack, word)
     }
 }
 
+/// Broken out because `eval_inner` is separate, too.
 fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Result<(), Error> {
     let s = stack.len();
     let r = match word {
@@ -102,7 +102,11 @@ fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Resul
 
 /// Broken out to untangle mutability concerns.
 /// Full of `stack.pop().expect(…)` because this should only be called from within `Machine::eval`.
-fn eval_inner(env: &IndexMap<String, Vec<Word>>, stack: &mut Vec<i64>, word: &Word) {
+fn eval_inner(
+    env: &IndexMap<String, Vec<Word>>,
+    stack: &mut Vec<i64>,
+    word: &Word,
+) -> Result<(), Error> {
     match word {
         Word::Pop => {
             stack.pop().expect("Internal error @ pop");
@@ -152,10 +156,12 @@ fn eval_inner(env: &IndexMap<String, Vec<Word>>, stack: &mut Vec<i64>, word: &Wo
         Word::Num(n) => stack.push(*n),
         Word::Custom(c) => {
             for v in &env[c] {
-                eval_inner(env, stack, v);
+                check(env, stack, v)?;
+                eval_inner(env, stack, v)?;
             }
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]
