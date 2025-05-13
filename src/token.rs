@@ -35,12 +35,11 @@ impl fmt::Display for Token<'_> {
     }
 }
 
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use proptest::prelude::*;
     use logos::Logos;
+    use proptest::prelude::*;
 
     proptest! {
         #[test]
