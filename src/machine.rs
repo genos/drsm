@@ -144,9 +144,9 @@ fn eval_inner(env: &IndexMap<String, Vec<Word>>, stack: &mut Vec<i64>, word: &Wo
             stack.push(x.wrapping_rem(y));
         }
         Word::Zero => {
-            let x = stack.pop().expect("Internal error at zero? 1");
-            let y = stack.pop().expect("Internal error at zero? 2");
-            let z = stack.pop().expect("Internal error at zero? 3");
+            let x = stack.pop().expect("Internal error @ zero? 1");
+            let y = stack.pop().expect("Internal error @ zero? 2");
+            let z = stack.pop().expect("Internal error @ zero? 3");
             stack.push(if x == 0 { y } else { z });
         }
         Word::Num(n) => stack.push(*n),
