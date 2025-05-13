@@ -21,4 +21,3 @@ panic = "abort"
 
 [dev-dependencies]
 proptest = "1.6.0"
-proptest-state-machine = "0.3.1"
