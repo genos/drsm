@@ -33,7 +33,6 @@ enum Command {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
-#[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 enum Mode {
     Vi,
     Emacs,
@@ -121,10 +120,15 @@ fn main() -> Result<(), Error> {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
     proptest! {
         #[test]
-        fn mode_roundtrip(m: Mode) {
+        fn mode_roundtrip(m in mode()) {
             prop_assert_eq!(m, ValueEnum::from_str(&m.to_string(), false).unwrap());
         }
+    }
+
+    fn mode() -> impl Strategy<Value = Mode> {
+        prop_oneof![Just(Mode::Vi), Just(Mode::Emacs)]
     }
 }

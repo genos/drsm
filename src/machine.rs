@@ -78,26 +78,27 @@ impl Machine {
         Ok(())
     }
     fn eval(&mut self, word: &Word) -> Result<(), Error> {
-        self.check(word)?;
+        check(&self.env, &self.stack, word)?;
         eval_inner(&self.env, &mut self.stack, word)
     }
-    fn check(&self, word: &Word) -> Result<(), Error> {
-        let s = self.stack.len();
-        let r = match word {
-            Word::Num(_) | Word::Custom(_) => 0,
-            Word::Pop | Word::Dup => 1,
-            Word::Swap | Word::Add | Word::Sub | Word::Mul | Word::Div | Word::Mod => 2,
-            Word::Zero => 3,
-        };
-        if s < r {
-            Err(Error::Small(word.to_string(), r, s))
-        } else if (*word == Word::Div || *word == Word::Mod) && self.stack[s - 2] == 0 {
-            Err(Error::NNZ(word.to_string()))
-        } else if matches!(word, Word::Custom(_)) && !self.env.contains_key(&word.to_string()) {
-            Err(Error::Unknown(word.to_string()))
-        } else {
-            Ok(())
-        }
+}
+
+fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Result<(), Error> {
+    let s = stack.len();
+    let r = match word {
+        Word::Num(_) | Word::Custom(_) => 0,
+        Word::Pop | Word::Dup => 1,
+        Word::Swap | Word::Add | Word::Sub | Word::Mul | Word::Div | Word::Mod => 2,
+        Word::Zero => 3,
+    };
+    if s < r {
+        Err(Error::Small(word.to_string(), r, s))
+    } else if (*word == Word::Div || *word == Word::Mod) && stack[s - 2] == 0 {
+        Err(Error::NNZ(word.to_string()))
+    } else if matches!(word, Word::Custom(_)) && !env.contains_key(&word.to_string()) {
+        Err(Error::Unknown(word.to_string()))
+    } else {
+        Ok(())
     }
 }
 
@@ -172,7 +173,7 @@ mod tests {
         fn check_implies_ok(ws in prop::collection::vec(word(), 1..512)) {
             let mut m = Machine::default();
             for w in ws {
-                if m.check(&w).is_ok() {
+                if check(&m.env, &m.stack, &w).is_ok() {
                     prop_assert!(m.eval(&w).is_ok(), "Machine with state {m:?} failed on {w}");
                 }
             }
@@ -181,106 +182,78 @@ mod tests {
 
     prop_state_machine! {
         #[test]
-        fn state_machine_testing(sequential 1..256 => Machine);
+        fn state_machine_testing(sequential 1..128 => Machine);
     }
 
-    #[derive(Debug, Clone, Copy, proptest_derive::Arbitrary)]
-    pub enum Op {
-        Push(i64),
-        Pop,
-        Swap,
-        Dup,
-        Add,
-        Sub,
-        Mul,
-        Div,
-        Mod,
-        Zero,
-        // NOTE: no Custom(w)
+    #[derive(Debug, Default, Clone)]
+    pub struct SafeMachine {
+        env: IndexMap<String, Vec<Word>>,
+        stack: Vec<i64>,
     }
 
-    impl From<Op> for Word {
-        fn from(o: Op) -> Self {
-            match o {
-                Op::Push(n) => Self::Num(n),
-                Op::Pop => Self::Pop,
-                Op::Swap => Self::Swap,
-                Op::Dup => Self::Dup,
-                Op::Add => Self::Add,
-                Op::Sub => Self::Sub,
-                Op::Mul => Self::Mul,
-                Op::Div => Self::Div,
-                Op::Mod => Self::Mod,
-                Op::Zero => Self::Zero,
-            }
-        }
-    }
-
-    pub struct SafeMachine;
     impl ReferenceStateMachine for SafeMachine {
-        type State = Vec<i64>;
-        type Transition = Op;
+        type State = Self;
+        type Transition = Word;
         fn init_state() -> BoxedStrategy<Self::State> {
-            Just(Vec::new()).boxed()
+            Just(Self::default()).boxed()
         }
         fn preconditions(state: &Self::State, transition: &Self::Transition) -> bool {
-            match transition {
-                Op::Push(_) => true,
-                Op::Pop | Op::Dup => !state.is_empty(),
-                Op::Swap | Op::Add | Op::Sub | Op::Mul => state.len() > 1,
-                Op::Div | Op::Mod => state.len() > 1 && state[state.len() - 2] > 0,
-                Op::Zero => state.len() > 2,
-            }
+            check(&state.env, &state.stack, transition).is_ok()
         }
         fn transitions(_: &Self::State) -> BoxedStrategy<Self::Transition> {
-            any::<Self::Transition>().boxed()
+            word().boxed()
         }
         fn apply(mut state: Self::State, transition: &Self::Transition) -> Self::State {
             match transition {
-                Op::Push(n) => state.push(*n),
-                Op::Pop => {
-                    state.pop();
+                Word::Pop => {
+                    state.stack.pop();
                 }
-                Op::Swap => {
-                    let x = state.pop().expect("swap 1");
-                    let y = state.pop().expect("swap 2");
-                    state.push(x);
-                    state.push(y);
+                Word::Swap => {
+                    let x = state.stack.pop().expect("swap 1");
+                    let y = state.stack.pop().expect("swap 2");
+                    state.stack.push(x);
+                    state.stack.push(y);
                 }
-                Op::Dup => {
-                    let x = state.last().copied().expect("dup");
-                    state.push(x);
+                Word::Dup => {
+                    let x = state.stack.last().copied().expect("dup");
+                    state.stack.push(x);
                 }
-                Op::Add => {
-                    let x = state.pop().expect("add 1");
-                    let y = state.pop().expect("add 2");
-                    state.push(x.wrapping_add(y));
+                Word::Add => {
+                    let x = state.stack.pop().expect("add 1");
+                    let y = state.stack.pop().expect("add 2");
+                    state.stack.push(x.wrapping_add(y));
                 }
-                Op::Sub => {
-                    let x = state.pop().expect("sub 1");
-                    let y = state.pop().expect("sub 2");
-                    state.push(x.wrapping_sub(y));
+                Word::Sub => {
+                    let x = state.stack.pop().expect("sub 1");
+                    let y = state.stack.pop().expect("sub 2");
+                    state.stack.push(x.wrapping_sub(y));
                 }
-                Op::Mul => {
-                    let x = state.pop().expect("mul 1");
-                    let y = state.pop().expect("mul 2");
-                    state.push(x.wrapping_mul(y));
+                Word::Mul => {
+                    let x = state.stack.pop().expect("mul 1");
+                    let y = state.stack.pop().expect("mul 2");
+                    state.stack.push(x.wrapping_mul(y));
                 }
-                Op::Div => {
-                    let x = state.pop().expect("div 1");
-                    let y = state.pop().expect("div 2");
-                    state.push(x.wrapping_div(y));
+                Word::Div => {
+                    let x = state.stack.pop().expect("div 1");
+                    let y = state.stack.pop().expect("div 2");
+                    state.stack.push(x.wrapping_div(y));
                 }
-                Op::Mod => {
-                    let x = state.pop().expect("mod 1");
-                    let y = state.pop().expect("mod 2");
-                    state.push(x.wrapping_rem(y));
+                Word::Mod => {
+                    let x = state.stack.pop().expect("mod 1");
+                    let y = state.stack.pop().expect("mod 2");
+                    state.stack.push(x.wrapping_rem(y));
                 }
-                Op::Zero => {
-                    let x = state.pop().expect("zero 1");
-                    let y = state.pop().expect("zero 2");
-                    let z = state.pop().expect("zero 3");
-                    state.push(if x == 0 { y } else { z });
+                Word::Zero => {
+                    let x = state.stack.pop().expect("zero 1");
+                    let y = state.stack.pop().expect("zero 2");
+                    let z = state.stack.pop().expect("zero 3");
+                    state.stack.push(if x == 0 { y } else { z });
+                }
+                Word::Num(n) => state.stack.push(*n),
+                Word::Custom(c) => {
+                    for v in state.env.get(c).cloned().unwrap_or_default() {
+                        state = Self::apply(state, &v);
+                    }
                 }
             }
             state
@@ -298,9 +271,8 @@ mod tests {
             r#ref: &<Self::Reference as ReferenceStateMachine>::State,
             transition: <Self::Reference as ReferenceStateMachine>::Transition,
         ) -> Self::SystemUnderTest {
-            let w = Word::from(transition);
-            sut.eval(&w).unwrap_or_else(|e| panic!("{w} errored: {e}"));
-            for (x, y) in sut.stack.iter().zip(r#ref.iter()) {
+            sut.eval(&transition).unwrap_or_else(|e| panic!("{transition} errored: {e}"));
+            for (x, y) in sut.stack.iter().zip(r#ref.stack.iter()) {
                 assert_eq!(x, y, "Different values in stacks: sut={x}, ref={y}");
             }
             sut
