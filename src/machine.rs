@@ -166,11 +166,10 @@ mod tests {
     use super::{super::word::tests::word, *};
     use proptest::prelude::*;
     use proptest_state_machine::{ReferenceStateMachine, StateMachineTest, prop_state_machine};
-    use std::collections::LinkedList;
 
     proptest! {
         #[test]
-        fn check_implies_ok(ws in prop::collection::vec(word(), 1..200)) {
+        fn check_implies_ok(ws in prop::collection::vec(word(), 1..512)) {
             let mut m = Machine::default();
             for w in ws {
                 if m.check(&w).is_ok() {
@@ -182,7 +181,7 @@ mod tests {
 
     prop_state_machine! {
         #[test]
-        fn state_machine_testing(sequential 1..100 => Machine);
+        fn state_machine_testing(sequential 1..256 => Machine);
     }
 
     #[derive(Debug, Clone, Copy, proptest_derive::Arbitrary)]
@@ -217,21 +216,19 @@ mod tests {
         }
     }
 
-    pub struct Dummy;
-    impl ReferenceStateMachine for Dummy {
-        type State = LinkedList<i64>;
+    pub struct SafeMachine;
+    impl ReferenceStateMachine for SafeMachine {
+        type State = Vec<i64>;
         type Transition = Op;
         fn init_state() -> BoxedStrategy<Self::State> {
-            Just(LinkedList::new()).boxed()
+            Just(Vec::new()).boxed()
         }
         fn preconditions(state: &Self::State, transition: &Self::Transition) -> bool {
             match transition {
                 Op::Push(_) => true,
                 Op::Pop | Op::Dup => !state.is_empty(),
                 Op::Swap | Op::Add | Op::Sub | Op::Mul => state.len() > 1,
-                Op::Div | Op::Mod => {
-                    state.len() > 1 && state.iter().nth_back(1).copied().unwrap_or_default() > 0
-                }
+                Op::Div | Op::Mod => state.len() > 1 && state[state.len() - 2] > 0,
                 Op::Zero => state.len() > 2,
             }
         }
@@ -240,50 +237,50 @@ mod tests {
         }
         fn apply(mut state: Self::State, transition: &Self::Transition) -> Self::State {
             match transition {
-                Op::Push(n) => state.push_back(*n),
+                Op::Push(n) => state.push(*n),
                 Op::Pop => {
-                    state.pop_back();
+                    state.pop();
                 }
                 Op::Swap => {
-                    let x = state.pop_back().expect("swap 1");
-                    let y = state.pop_back().expect("swap 2");
-                    state.push_back(x);
-                    state.push_back(y);
+                    let x = state.pop().expect("swap 1");
+                    let y = state.pop().expect("swap 2");
+                    state.push(x);
+                    state.push(y);
                 }
                 Op::Dup => {
-                    let x = state.back().copied().expect("dup");
-                    state.push_back(x);
+                    let x = state.last().copied().expect("dup");
+                    state.push(x);
                 }
                 Op::Add => {
-                    let x = state.pop_back().expect("add 1");
-                    let y = state.pop_back().expect("add 2");
-                    state.push_back(x.wrapping_add(y));
+                    let x = state.pop().expect("add 1");
+                    let y = state.pop().expect("add 2");
+                    state.push(x.wrapping_add(y));
                 }
                 Op::Sub => {
-                    let x = state.pop_back().expect("sub 1");
-                    let y = state.pop_back().expect("sub 2");
-                    state.push_back(x.wrapping_sub(y));
+                    let x = state.pop().expect("sub 1");
+                    let y = state.pop().expect("sub 2");
+                    state.push(x.wrapping_sub(y));
                 }
                 Op::Mul => {
-                    let x = state.pop_back().expect("mul 1");
-                    let y = state.pop_back().expect("mul 2");
-                    state.push_back(x.wrapping_mul(y));
+                    let x = state.pop().expect("mul 1");
+                    let y = state.pop().expect("mul 2");
+                    state.push(x.wrapping_mul(y));
                 }
                 Op::Div => {
-                    let x = state.pop_back().expect("div 1");
-                    let y = state.pop_back().expect("div 2");
-                    state.push_back(x.wrapping_div(y));
+                    let x = state.pop().expect("div 1");
+                    let y = state.pop().expect("div 2");
+                    state.push(x.wrapping_div(y));
                 }
                 Op::Mod => {
-                    let x = state.pop_back().expect("mod 1");
-                    let y = state.pop_back().expect("mod 2");
-                    state.push_back(x.wrapping_rem(y));
+                    let x = state.pop().expect("mod 1");
+                    let y = state.pop().expect("mod 2");
+                    state.push(x.wrapping_rem(y));
                 }
                 Op::Zero => {
-                    let x = state.pop_back().expect("zero 1");
-                    let y = state.pop_back().expect("zero 2");
-                    let z = state.pop_back().expect("zero 3");
-                    state.push_back(if x == 0 { y } else { z });
+                    let x = state.pop().expect("zero 1");
+                    let y = state.pop().expect("zero 2");
+                    let z = state.pop().expect("zero 3");
+                    state.push(if x == 0 { y } else { z });
                 }
             }
             state
@@ -292,7 +289,7 @@ mod tests {
 
     impl StateMachineTest for Machine {
         type SystemUnderTest = Self;
-        type Reference = Dummy;
+        type Reference = SafeMachine;
         fn init_test(_r: &<Self::Reference as ReferenceStateMachine>::State) -> Self {
             Self::default()
         }
