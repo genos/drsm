@@ -62,8 +62,7 @@ impl TryFrom<Token<'_>> for Word {
                 s if s == Self::Div.to_string() => Ok(Self::Div),
                 s if s == Self::Mod.to_string() => Ok(Self::Mod),
                 s if s == Self::Zero.to_string() => Ok(Self::Zero),
-                // Should be unreachable, but let's be careful.
-                _ => Err(Error::Unknown(w.to_string())),
+                _ => unreachable!("Core tokens match core words"),
             },
             Token::Num(n) | Token::Hex(n) => Ok(Self::Num(n)),
             Token::Custom(w) => Ok(Self::Custom(w.to_string())),
@@ -73,10 +72,7 @@ impl TryFrom<Token<'_>> for Word {
 
 impl PartialEq<String> for Word {
     fn eq(&self, s: &String) -> bool {
-        match self {
-            Self::Custom(w) => w == s,
-            _ => false,
-        }
+        matches!(self, Self::Custom(w) if w == s)
     }
 }
 

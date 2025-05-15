@@ -26,7 +26,7 @@ enum Command {
     #[command(about = "run an interactive REPL")]
     Repl {
         #[arg(short, long, default_value_t = Mode::Vi)]
-        edit_mode: Mode,
+        mode: Mode,
     },
     #[command(about = "execute the commands in a file")]
     Run { file: PathBuf },
@@ -69,9 +69,9 @@ enum Error {
 fn main() -> Result<(), Error> {
     let args = Args::parse();
     match args.command {
-        Command::Repl { edit_mode } => {
+        Command::Repl { mode } => {
             let mut r =
-                DefaultEditor::with_config(Config::builder().edit_mode(edit_mode.into()).build())?;
+                DefaultEditor::with_config(Config::builder().edit_mode(mode.into()).build())?;
             println!(
                 r"
     ____  ____  _____ __  ___

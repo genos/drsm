@@ -155,9 +155,9 @@ fn eval_inner(
         }
         Word::Num(n) => stack.push(*n),
         Word::Custom(c) => {
-            for v in &env[c] {
-                check(env, stack, v)?;
-                eval_inner(env, stack, v)?;
+            for w in &env[c] {
+                check(env, stack, w)?;
+                eval_inner(env, stack, w)?;
             }
         }
     }
@@ -169,15 +169,68 @@ mod tests {
     use super::{super::word::tests::word, *};
     use proptest::prelude::*;
 
+    #[test]
+    fn def_errs() {
+        for s in ["def", "def name", "def def pop", "def pop body", "def name name"] {
+            assert!(Machine::default().read_eval(&s).is_err());
+        }
+    }
+
     proptest! {
         #[test]
-        fn check_implies_ok(ws in prop::collection::vec(word(), 0..256)) {
+        fn pushing_extends_stack(ns in prop::collection::vec(any::<i64>(), 1..64)) {
+            let mut m = Machine::default();
+            let mut old = m.to_string().len();
+            for n in ns {
+                prop_assert!(m.eval(&Word::Num(n)).is_ok());
+                let new = m.to_string().len();
+                prop_assert_eq!(new - old, format!(" {n}").len());
+                old = new;
+            }
+        }
+        #[test]
+        fn check_implies_eval(ws in prop::collection::vec(word(), 0..64)) {
             let mut m = Machine::default();
             for w in ws {
                 if check(&m.env, &m.stack, &w).is_ok() {
                     prop_assert!(m.eval(&w).is_ok(), "Machine with state {m:?} failed on {w}");
                 }
             }
+        }
+        #[test]
+        fn check_implies_read_eval(ws in prop::collection::vec(word(), 0..64)) {
+            let mut m = Machine::default();
+            for w in ws {
+                if check(&m.env, &m.stack, &w).is_ok() {
+                    prop_assert!(m.read_eval(&w.to_string()).is_ok(), "Machine with state {m:?} failed on {w}");
+                }
+            }
+        }
+        #[test]
+        fn def_adds_to_env(ws in prop::collection::vec(r"\S+", 0..64), n in r"\S+") {
+            let mut m = Machine::default();
+            let s = format!("def {n} {}", ws.join(" "));
+            let r = m.read_eval(&s);
+            prop_assert!(
+                (ws.is_empty()
+                    || ws.contains(&n)
+                    || n.parse::<i64>().is_ok()
+                    || [
+                        "def", "pop", "swap", "dup", "add", "sub", "mul", "div", "mod", "zero?"
+                    ]
+                    .contains(&&*n))
+                    || (r.is_ok() && m.env.contains_key(&n) && m.to_string().contains(&n))
+            );
+            prop_assert!(m.stack.is_empty());
+        }
+        #[test]
+        fn custom_ok(ws in prop::collection::vec(word(), 1..64), n in r"custom_word_\S+") {
+            let mut m1 = Machine::default();
+            let r1 = ws.iter().map(|w| m1.eval(w)).collect::<Result<Vec<()>, _>>();
+            let s = format!("def {n} {}", ws.iter().map(|w| w.to_string()).collect::<Vec<_>>().join(" "));
+            let mut m2 = Machine::default();
+            prop_assert!(m2.read_eval(&s).is_ok());
+            prop_assert_eq!(m2.eval(&Word::Custom(n)).is_ok(), r1.is_ok());
         }
     }
 }
