@@ -10,13 +10,13 @@ pub enum Token<'source> {
     #[token("def")]
     Def,
     /// A core word.
-    #[regex(r"(pop|swap|dup|add|sub|mul|div|mod|zero[?])")]
+    #[regex(r"(drop|swap|dup|add|sub|mul|div|mod|zero[?]|print)")]
     Core(&'source str),
     /// An integer in decimal notation.
-    #[regex(r"-?[0-9]+", |lex| lex.slice().parse())]
+    #[regex(r"-?[[:digit:]]+", |lex| lex.slice().parse())]
     Num(i64),
     /// An integer in hexadecimal notation.
-    #[regex(r"#[0-9a-fA-F]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16))]
+    #[regex(r"#[[:xdigit:]]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16))]
     Hex(i64),
     /// A (possibly unknown) custom token.
     #[regex(r"\S+", priority = 0)]
@@ -53,7 +53,7 @@ pub mod tests {
             prop_assert_eq!(t2, t);
         }
         #[test]
-        fn custom_roundtrip(s in r"\S+") {
+        fn custom_roundtrip(s in r"custom_token_\S+") {
             let t = Token::Custom(&s);
             prop_assert_eq!(&t.to_string(), &s);
             let ts = Token::lexer(&s).collect::<Result<Vec<_>, _>>();
@@ -70,7 +70,7 @@ pub mod tests {
     pub fn token() -> impl Strategy<Value = Token<'static>> {
         prop_oneof![
             Just(Token::Def),
-            Just(Token::Core("pop")),
+            Just(Token::Core("drop")),
             Just(Token::Core("swap")),
             Just(Token::Core("dup")),
             Just(Token::Core("add")),
@@ -79,6 +79,7 @@ pub mod tests {
             Just(Token::Core("div")),
             Just(Token::Core("mod")),
             Just(Token::Core("zero?")),
+            Just(Token::Core("print")),
             any::<i64>().prop_map(Token::Num),
             (0..i64::MAX).prop_map(Token::Hex),
         ]
