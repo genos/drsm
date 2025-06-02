@@ -197,7 +197,6 @@ mod tests {
             assert!(Machine::default().read_eval(s).is_err());
         }
     }
-
     #[test]
     fn num_errs() {
         for s in ["0 1 div", "0 1 mod", "-1 -9223372036854775808 mod"] {

@@ -27,10 +27,9 @@ impl fmt::Display for Token<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Def => f.write_str("def"),
-            Self::Core(s) => f.write_str(s),
+            Self::Core(s) | Self::Custom(s) => f.write_str(s),
             Self::Num(n) => write!(f, "{n}"),
             Self::Hex(n) => write!(f, "#{n:x}"),
-            Self::Custom(w) => write!(f, "{w}"),
         }
     }
 }
