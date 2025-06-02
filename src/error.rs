@@ -40,4 +40,7 @@ pub enum Error {
     /// `{0}` requires its second operand be nonzero.
     #[error("`{0}` requires its second operand be nonzero.")]
     NNZ(String),
+    /// `mod` would error with arguments (`i64::MIN`, -1)
+    #[error("`mod` would error with arguments (`i64::MIN`, -1)")]
+    ModEdge,
 }

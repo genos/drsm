@@ -13,8 +13,8 @@ pub struct Machine {
 impl Default for Machine {
     fn default() -> Self {
         Self {
-            env: IndexMap::with_capacity(1_024),
-            stack: Vec::with_capacity(1024),
+            env: IndexMap::with_capacity(64),
+            stack: Vec::with_capacity(64),
         }
     }
 }
@@ -23,7 +23,7 @@ impl fmt::Display for Machine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("core:")?;
         for t in [
-            Word::Pop,
+            Word::Drop,
             Word::Swap,
             Word::Dup,
             Word::Add,
@@ -32,6 +32,7 @@ impl fmt::Display for Machine {
             Word::Div,
             Word::Mod,
             Word::Zero,
+            Word::Print,
         ] {
             write!(f, " {t}")?;
         }
@@ -74,18 +75,29 @@ impl Machine {
         }
         Ok(())
     }
+    /// Look for a definition in the environment.
+    #[must_use]
+    pub fn lookup(&self, s: &str) -> Option<String> {
+        self.env.get(s).map(|d| {
+            d.iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+    }
+    /// `check` the input, then run it through `eval_inner`.
     fn eval(&mut self, word: &Word) -> Result<(), Error> {
         check(&self.env, &self.stack, word)?;
         eval_inner(&self.env, &mut self.stack, word)
     }
 }
 
-/// Broken out because `eval_inner` is separate, too.
+/// Broken out because `eval_inner` is separate, too, and requires this.
 fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Result<(), Error> {
     let s = stack.len();
     let r = match word {
         Word::Num(_) | Word::Custom(_) => 0,
-        Word::Pop | Word::Dup => 1,
+        Word::Drop | Word::Dup | Word::Print => 1,
         Word::Swap | Word::Add | Word::Sub | Word::Mul | Word::Div | Word::Mod => 2,
         Word::Zero => 3,
     };
@@ -93,6 +105,8 @@ fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Resul
         Err(Error::Small(word.to_string(), r, s))
     } else if (*word == Word::Div || *word == Word::Mod) && stack[s - 2] == 0 {
         Err(Error::NNZ(word.to_string()))
+    } else if *word == Word::Mod && stack[s - 1] == i64::MIN && stack[s - 2] == -1 {
+        Err(Error::ModEdge)
     } else if matches!(word, Word::Custom(_)) && !env.contains_key(&word.to_string()) {
         Err(Error::Unknown(word.to_string()))
     } else {
@@ -101,15 +115,15 @@ fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Resul
 }
 
 /// Broken out to untangle mutability concerns.
-/// Full of `stack.pop().expect(…)` because this should only be called from within `Machine::eval`.
+/// Full of `stack.pop().expect(…)` because this should _only_ be called from within `Machine::eval`.
 fn eval_inner(
     env: &IndexMap<String, Vec<Word>>,
     stack: &mut Vec<i64>,
     word: &Word,
 ) -> Result<(), Error> {
     match word {
-        Word::Pop => {
-            stack.pop().expect("Internal error @ pop");
+        Word::Drop => {
+            stack.pop().expect("Internal error @ drop");
         }
         Word::Swap => {
             let x = stack.pop().expect("Internal error @ swap 1");
@@ -125,27 +139,27 @@ fn eval_inner(
         Word::Add => {
             let x = stack.pop().expect("Internal error @ add 1");
             let y = stack.pop().expect("Internal error @ add 2");
-            stack.push(x.wrapping_add(y));
+            stack.push(x.saturating_add(y));
         }
         Word::Sub => {
             let x = stack.pop().expect("Internal error @ sub 1");
             let y = stack.pop().expect("Internal error @ sub 2");
-            stack.push(x.wrapping_sub(y));
+            stack.push(x.saturating_sub(y));
         }
         Word::Mul => {
             let x = stack.pop().expect("Internal error @ mul 1");
             let y = stack.pop().expect("Internal error @ mul 2");
-            stack.push(x.wrapping_mul(y));
+            stack.push(x.saturating_mul(y));
         }
         Word::Div => {
             let x = stack.pop().expect("Internal error @ div 1");
             let y = stack.pop().expect("Internal error @ div 2");
-            stack.push(x.wrapping_div(y));
+            stack.push(x.saturating_div(y));
         }
         Word::Mod => {
             let x = stack.pop().expect("Internal error @ mod 1");
             let y = stack.pop().expect("Internal error @ mod 2");
-            stack.push(x.wrapping_rem(y));
+            stack.push(x.rem_euclid(y));
         }
         Word::Zero => {
             let x = stack.pop().expect("Internal error @ zero? 1");
@@ -153,6 +167,7 @@ fn eval_inner(
             let z = stack.pop().expect("Internal error @ zero? 3");
             stack.push(if x == 0 { y } else { z });
         }
+        Word::Print => println!("{}", stack.pop().expect("Internal error @ print")),
         Word::Num(n) => stack.push(*n),
         Word::Custom(c) => {
             for w in &env[c] {
@@ -168,11 +183,25 @@ fn eval_inner(
 mod tests {
     use super::{super::word::tests::word, *};
     use proptest::prelude::*;
+    use std::string::ToString;
 
     #[test]
     fn def_errs() {
-        for s in ["def", "def name", "def def pop", "def pop body", "def name name"] {
-            assert!(Machine::default().read_eval(&s).is_err());
+        for s in [
+            "def",
+            "def name",
+            "def def drop",
+            "def drop body",
+            "def name name",
+        ] {
+            assert!(Machine::default().read_eval(s).is_err());
+        }
+    }
+
+    #[test]
+    fn num_errs() {
+        for s in ["0 1 div", "0 1 mod", "-1 -9223372036854775808 mod"] {
+            assert!(Machine::default().read_eval(s).is_err());
         }
     }
 
@@ -192,34 +221,31 @@ mod tests {
         fn check_implies_eval(ws in prop::collection::vec(word(), 0..64)) {
             let mut m = Machine::default();
             for w in ws {
-                if check(&m.env, &m.stack, &w).is_ok() {
-                    prop_assert!(m.eval(&w).is_ok(), "Machine with state {m:?} failed on {w}");
-                }
+                prop_assert_eq!(check(&m.env, &m.stack, &w).is_ok(), m.eval(&w).is_ok());
             }
         }
         #[test]
         fn check_implies_read_eval(ws in prop::collection::vec(word(), 0..64)) {
             let mut m = Machine::default();
             for w in ws {
-                if check(&m.env, &m.stack, &w).is_ok() {
-                    prop_assert!(m.read_eval(&w.to_string()).is_ok(), "Machine with state {m:?} failed on {w}");
-                }
+                prop_assert_eq!(check(&m.env, &m.stack, &w).is_ok(), m.read_eval(&w.to_string()).is_ok());
             }
         }
         #[test]
-        fn def_adds_to_env(ws in prop::collection::vec(r"\S+", 0..64), n in r"\S+") {
+        fn def_adds_to_env(ws in prop::collection::vec(r"\S+", 0..64), n in r"custom_name_\S+") {
             let mut m = Machine::default();
-            let s = format!("def {n} {}", ws.join(" "));
+            let d = ws.join(" ");
+            let s = format!("def {n} {d}");
             let r = m.read_eval(&s);
             prop_assert!(
                 (ws.is_empty()
                     || ws.contains(&n)
                     || n.parse::<i64>().is_ok()
                     || [
-                        "def", "pop", "swap", "dup", "add", "sub", "mul", "div", "mod", "zero?"
+                        "def", "pop", "swap", "dup", "add", "sub", "mul", "div", "mod", "zero?", "print"
                     ]
                     .contains(&&*n))
-                    || (r.is_ok() && m.env.contains_key(&n) && m.to_string().contains(&n))
+                    || (r.is_ok() && m.lookup(&n).is_some() && m.env.contains_key(&n) && m.to_string().contains(&n))
             );
             prop_assert!(m.stack.is_empty());
         }
@@ -227,7 +253,7 @@ mod tests {
         fn custom_ok(ws in prop::collection::vec(word(), 1..64), n in r"custom_word_\S+") {
             let mut m1 = Machine::default();
             let r1 = ws.iter().map(|w| m1.eval(w)).collect::<Result<Vec<()>, _>>();
-            let s = format!("def {n} {}", ws.iter().map(|w| w.to_string()).collect::<Vec<_>>().join(" "));
+            let s = format!("def {n} {}", ws.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(" "));
             let mut m2 = Machine::default();
             prop_assert!(m2.read_eval(&s).is_ok());
             prop_assert_eq!(m2.eval(&Word::Custom(n)).is_ok(), r1.is_ok());

@@ -66,6 +66,14 @@ enum Error {
     Readline(#[from] ReadlineError),
 }
 
+static REPL_COMMANDS: &str = "
+Commands:
+    ?           =>  show these commands.
+    ?show       =>  show machine's environment & stack.
+    ?lookup <w> =>  look up word <w> in the environment.
+    ?quit       =>  quit the REPL.
+";
+
 fn main() -> Result<(), Error> {
     let args = Args::parse();
     match args.command {
@@ -79,6 +87,12 @@ fn main() -> Result<(), Error> {
   / / / / /_/ /\__ \/ /|_/ /
  / /_/ / _, _/___/ / /  / /
 /_____/_/ |_|/____/_/  /_/
+
+Dylan's Rusty Stack Machine
+
+{REPL_COMMANDS}
+
+Line-editing is enabled, with {mode}-style key bindings (chosen at startup via the `-m/--mode` option).
 "
             );
             if r.load_history("history.txt").is_err() {
@@ -87,6 +101,22 @@ fn main() -> Result<(), Error> {
             let mut m = Machine::default();
             loop {
                 match r.readline(">  ") {
+                    Ok(l) if l == "?" => println!("{REPL_COMMANDS}"),
+                    Ok(l) if l == "?show" => println!("{m}"),
+                    Ok(l) if l == "?quit" => {
+                        println!("Bye!");
+                        break;
+                    }
+                    Ok(l) if l.starts_with("?lookup ") => {
+                        if let Some(w) = l.split_ascii_whitespace().nth(1) {
+                            match m.lookup(w) {
+                                Some(d) => println!("{d}"),
+                                None => eprintln!("`{w}` is not defined in the environment."),
+                            }
+                        } else {
+                            eprintln!("?lookup requires a word to look up.");
+                        }
+                    }
                     Ok(l) => {
                         r.add_history_entry(&l)?;
                         match m.read_eval(&l) {
@@ -95,13 +125,12 @@ fn main() -> Result<(), Error> {
                         }
                     }
                     Err(ReadlineError::Eof) => {
-                        println!("Bye!");
+                        println!("^D");
                         break;
                     }
                     Err(ReadlineError::Interrupted) => println!("^C"),
                     Err(e) => eprintln!("Error: {e}"),
                 }
-                println!("{m}");
             }
             r.save_history("history.txt")?;
         }
@@ -110,7 +139,6 @@ fn main() -> Result<(), Error> {
             for line in BufReader::new(File::open(file)?).lines() {
                 m.read_eval(&line?)?;
             }
-            println!("{m}");
         }
     }
     Ok(())

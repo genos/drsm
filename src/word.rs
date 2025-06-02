@@ -4,8 +4,8 @@ use std::{convert::TryFrom, fmt};
 /// The words upon which our stack machine works.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Word {
-    /// Pop an item off the stack.
-    Pop,
+    /// Pop an item off the stack, ignoring it.
+    Drop,
     /// Swap the top two elements of the stack.
     Swap,
     /// Duplicate the first element of the stack.
@@ -22,6 +22,8 @@ pub enum Word {
     Mod,
     /// Pop 3 elements. If the first is zero, push the second back on; otherwise, push the third.
     Zero,
+    /// Pop an element off the stack and print it.
+    Print,
     /// An integer.
     Num(i64),
     /// A custom word.
@@ -31,7 +33,7 @@ pub enum Word {
 impl fmt::Display for Word {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Pop => f.write_str("pop"),
+            Self::Drop => f.write_str("drop"),
             Self::Swap => f.write_str("swap"),
             Self::Dup => f.write_str("dup"),
             Self::Add => f.write_str("add"),
@@ -40,6 +42,7 @@ impl fmt::Display for Word {
             Self::Div => f.write_str("div"),
             Self::Mod => f.write_str("mod"),
             Self::Zero => f.write_str("zero?"),
+            Self::Print => f.write_str("print"),
             Self::Num(n) => write!(f, "{n}"),
             Self::Custom(w) => write!(f, "{w}"),
         }
@@ -53,7 +56,7 @@ impl TryFrom<Token<'_>> for Word {
             Token::Def => Err(Error::Reserved),
             Token::Core(w) => match w {
                 // A verbose pattern rather than strings to ensure this matches the Display impl.
-                s if s == Self::Pop.to_string() => Ok(Self::Pop),
+                s if s == Self::Drop.to_string() => Ok(Self::Drop),
                 s if s == Self::Swap.to_string() => Ok(Self::Swap),
                 s if s == Self::Dup.to_string() => Ok(Self::Dup),
                 s if s == Self::Add.to_string() => Ok(Self::Add),
@@ -62,6 +65,7 @@ impl TryFrom<Token<'_>> for Word {
                 s if s == Self::Div.to_string() => Ok(Self::Div),
                 s if s == Self::Mod.to_string() => Ok(Self::Mod),
                 s if s == Self::Zero.to_string() => Ok(Self::Zero),
+                s if s == Self::Print.to_string() => Ok(Self::Print),
                 _ => unreachable!("Core tokens match core words"),
             },
             Token::Num(n) | Token::Hex(n) => Ok(Self::Num(n)),
@@ -127,7 +131,7 @@ pub mod tests {
 
     pub fn word() -> impl Strategy<Value = Word> {
         prop_oneof![
-            Just(Word::Pop),
+            Just(Word::Drop),
             Just(Word::Swap),
             Just(Word::Dup),
             Just(Word::Add),
@@ -136,6 +140,7 @@ pub mod tests {
             Just(Word::Div),
             Just(Word::Mod),
             Just(Word::Zero),
+            Just(Word::Print),
             any::<i64>().prop_map(Word::Num),
             r"[a-zA-Z]+".prop_map(Word::Custom)
         ]
