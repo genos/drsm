@@ -1,11 +1,11 @@
 [package]
 name = "drsm"
 description = "Dylan's Rusty Stack Machine"
-version = "0.7.0"
+version = "0.7.1"
 edition = "2024"
 
 [dependencies]
-clap = { version = "4.5.39", features = ["derive"] }
+clap = { version = "4.5.40", features = ["derive"] }
 indexmap = "2.9.0"
 logos = "0.15.0"
 rustyline = "16.0.0"
@@ -20,4 +20,4 @@ codegen-units = 1
 panic = "abort"
 
 [dev-dependencies]
-proptest = "1.6.0"
+proptest = "1.7.0"
