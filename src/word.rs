@@ -1,52 +1,18 @@
-use crate::{Error, token::Token};
-use std::{convert::TryFrom, fmt};
+use crate::{Error, core::Core, token::Token};
+use std::convert::TryFrom;
 
 /// The words upon which our stack machine works.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, strum::Display)]
 pub enum Word {
-    /// Pop an item off the stack, ignoring it.
-    Drop,
-    /// Swap the top two elements of the stack.
-    Swap,
-    /// Duplicate the first element of the stack.
-    Dup,
-    /// Add the first two elements of the stack.
-    Add,
-    /// Subtract the second from the first element of the stack.
-    Sub,
-    /// Multiply the first two elements of the stack.
-    Mul,
-    /// Divide the second into the first element of the stack.
-    Div,
-    /// Take the remainder of the second in the first element of the stack.
-    Mod,
-    /// Pop 3 elements. If the first is zero, push the second back on; otherwise, push the third.
-    Zero,
-    /// Pop an element off the stack and print it.
-    Print,
+    /// A core word,
+    #[strum(serialize = "{0}")]
+    Core(Core),
     /// An integer.
+    #[strum(serialize = "{0}")]
     Num(i64),
     /// A custom word.
+    #[strum(serialize = "{0}")]
     Custom(String),
-}
-
-impl fmt::Display for Word {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Drop => f.write_str("drop"),
-            Self::Swap => f.write_str("swap"),
-            Self::Dup => f.write_str("dup"),
-            Self::Add => f.write_str("add"),
-            Self::Sub => f.write_str("sub"),
-            Self::Mul => f.write_str("mul"),
-            Self::Div => f.write_str("div"),
-            Self::Mod => f.write_str("mod"),
-            Self::Zero => f.write_str("zero?"),
-            Self::Print => f.write_str("print"),
-            Self::Num(n) => write!(f, "{n}"),
-            Self::Custom(w) => write!(f, "{w}"),
-        }
-    }
 }
 
 impl TryFrom<Token<'_>> for Word {
@@ -54,20 +20,7 @@ impl TryFrom<Token<'_>> for Word {
     fn try_from(t: Token<'_>) -> Result<Self, Self::Error> {
         match t {
             Token::Def => Err(Error::Reserved),
-            Token::Core(w) => match w {
-                // A verbose pattern rather than strings to ensure this matches the Display impl.
-                s if s == Self::Drop.to_string() => Ok(Self::Drop),
-                s if s == Self::Swap.to_string() => Ok(Self::Swap),
-                s if s == Self::Dup.to_string() => Ok(Self::Dup),
-                s if s == Self::Add.to_string() => Ok(Self::Add),
-                s if s == Self::Sub.to_string() => Ok(Self::Sub),
-                s if s == Self::Mul.to_string() => Ok(Self::Mul),
-                s if s == Self::Div.to_string() => Ok(Self::Div),
-                s if s == Self::Mod.to_string() => Ok(Self::Mod),
-                s if s == Self::Zero.to_string() => Ok(Self::Zero),
-                s if s == Self::Print.to_string() => Ok(Self::Print),
-                _ => unreachable!("Core tokens match core words"),
-            },
+            Token::Core(c) => Ok(Self::Core(c)),
             Token::Num(n) | Token::Hex(n) => Ok(Self::Num(n)),
             Token::Custom(w) => Ok(Self::Custom(w.to_string())),
         }
@@ -85,14 +38,17 @@ impl Word {
         match self {
             Self::Custom(w) => Ok(w),
             Self::Num(n) => Err(Error::NumNotName(n)),
-            _ => Err(Error::CoreNotName(self.to_string())),
+            Self::Core(_) => Err(Error::CoreNotName(self.to_string())),
         }
     }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use super::{super::token::tests::token, *};
+    use super::{
+        super::{core::tests::core, token::tests::token},
+        *,
+    };
     use logos::Logos;
     use proptest::prelude::*;
 
@@ -131,16 +87,7 @@ pub mod tests {
 
     pub fn word() -> impl Strategy<Value = Word> {
         prop_oneof![
-            Just(Word::Drop),
-            Just(Word::Swap),
-            Just(Word::Dup),
-            Just(Word::Add),
-            Just(Word::Sub),
-            Just(Word::Mul),
-            Just(Word::Div),
-            Just(Word::Mod),
-            Just(Word::Zero),
-            Just(Word::Print),
+            core().prop_map(Word::Core),
             any::<i64>().prop_map(Word::Num),
             r"[a-zA-Z]+".prop_map(Word::Custom)
         ]

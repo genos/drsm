@@ -5,9 +5,10 @@
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
 
+mod core;
 mod error;
 mod machine;
 mod token;
 mod word;
 
-pub use crate::{error::Error, machine::Machine};
+pub use crate::{core::Core, error::Error, machine::Machine};

@@ -1,7 +1,8 @@
-use crate::{error::Error, token::Token, word::Word};
+use crate::{core::Core, error::Error, token::Token, word::Word};
 use indexmap::IndexMap;
 use logos::Logos;
 use std::{convert::TryFrom, fmt};
+use strum::IntoEnumIterator;
 
 /// The main data structure: a stack machine with an environment of local definitions.
 #[derive(Debug)]
@@ -22,19 +23,8 @@ impl Default for Machine {
 impl fmt::Display for Machine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("core:")?;
-        for t in [
-            Word::Drop,
-            Word::Swap,
-            Word::Dup,
-            Word::Add,
-            Word::Sub,
-            Word::Mul,
-            Word::Div,
-            Word::Mod,
-            Word::Zero,
-            Word::Print,
-        ] {
-            write!(f, " {t}")?;
+        for c in Core::iter() {
+            write!(f, " {c}")?;
         }
         f.write_str("\nenv:")?;
         for k in self.env.keys() {
@@ -97,15 +87,19 @@ fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Resul
     let s = stack.len();
     let r = match word {
         Word::Num(_) | Word::Custom(_) => 0,
-        Word::Drop | Word::Dup | Word::Print => 1,
-        Word::Swap | Word::Add | Word::Sub | Word::Mul | Word::Div | Word::Mod => 2,
-        Word::Zero => 3,
+        Word::Core(c) => match c {
+            Core::Drop | Core::Dup | Core::Print => 1,
+            Core::Swap | Core::Add | Core::Sub | Core::Mul | Core::Div | Core::Mod => 2,
+            Core::Zero => 3,
+        },
     };
     if s < r {
         Err(Error::Small(word.to_string(), r, s))
-    } else if (*word == Word::Div || *word == Word::Mod) && stack[s - 2] == 0 {
+    } else if (*word == Word::Core(Core::Div) || *word == Word::Core(Core::Mod))
+        && stack[s - 2] == 0
+    {
         Err(Error::NNZ(word.to_string()))
-    } else if *word == Word::Mod && stack[s - 1] == i64::MIN && stack[s - 2] == -1 {
+    } else if *word == Word::Core(Core::Mod) && stack[s - 1] == i64::MIN && stack[s - 2] == -1 {
         Err(Error::ModEdge)
     } else if matches!(word, Word::Custom(_)) && !env.contains_key(&word.to_string()) {
         Err(Error::Unknown(word.to_string()))
@@ -122,52 +116,52 @@ fn eval_inner(
     word: &Word,
 ) -> Result<(), Error> {
     match word {
-        Word::Drop => {
+        Word::Core(Core::Drop) => {
             stack.pop().expect("Internal error @ drop");
         }
-        Word::Swap => {
+        Word::Core(Core::Swap) => {
             let x = stack.pop().expect("Internal error @ swap 1");
             let y = stack.pop().expect("Internal error @ swap 2");
             stack.push(x);
             stack.push(y);
         }
-        Word::Dup => {
+        Word::Core(Core::Dup) => {
             let x = stack.pop().expect("Internal error @ dup");
             stack.push(x);
             stack.push(x);
         }
-        Word::Add => {
+        Word::Core(Core::Add) => {
             let x = stack.pop().expect("Internal error @ add 1");
             let y = stack.pop().expect("Internal error @ add 2");
             stack.push(x.saturating_add(y));
         }
-        Word::Sub => {
+        Word::Core(Core::Sub) => {
             let x = stack.pop().expect("Internal error @ sub 1");
             let y = stack.pop().expect("Internal error @ sub 2");
             stack.push(x.saturating_sub(y));
         }
-        Word::Mul => {
+        Word::Core(Core::Mul) => {
             let x = stack.pop().expect("Internal error @ mul 1");
             let y = stack.pop().expect("Internal error @ mul 2");
             stack.push(x.saturating_mul(y));
         }
-        Word::Div => {
+        Word::Core(Core::Div) => {
             let x = stack.pop().expect("Internal error @ div 1");
             let y = stack.pop().expect("Internal error @ div 2");
             stack.push(x.saturating_div(y));
         }
-        Word::Mod => {
+        Word::Core(Core::Mod) => {
             let x = stack.pop().expect("Internal error @ mod 1");
             let y = stack.pop().expect("Internal error @ mod 2");
             stack.push(x.rem_euclid(y));
         }
-        Word::Zero => {
+        Word::Core(Core::Zero) => {
             let x = stack.pop().expect("Internal error @ zero? 1");
             let y = stack.pop().expect("Internal error @ zero? 2");
             let z = stack.pop().expect("Internal error @ zero? 3");
             stack.push(if x == 0 { y } else { z });
         }
-        Word::Print => println!("{}", stack.pop().expect("Internal error @ print")),
+        Word::Core(Core::Print) => println!("{}", stack.pop().expect("Internal error @ print")),
         Word::Num(n) => stack.push(*n),
         Word::Custom(c) => {
             for w in &env[c] {
