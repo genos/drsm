@@ -5,7 +5,7 @@
 #![deny(missing_docs)]
 #![deny(unsafe_code)]
 use clap::{Parser, Subcommand, ValueEnum};
-use documented::DocumentedVariants;
+use documented::DocumentedFields;
 use drsm::{Core, Machine};
 use rustyline::{Config, DefaultEditor, EditMode, error::ReadlineError};
 use std::{
@@ -110,10 +110,8 @@ Line-editing is enabled, with {mode}-style key bindings (chosen at startup via t
                     }
                     Ok(l) if l.starts_with("?lookup ") => {
                         if let Some(w) = l.split_ascii_whitespace().nth(1) {
-                            match (w.parse::<Core>(), m.lookup(w)) {
-                                (Ok(c), _) => {
-                                    println!("`{w}` is a core word: {}", c.get_variant_docs())
-                                }
+                            match (Core::get_field_docs(w), m.lookup(w)) {
+                                (Ok(d), _) => println!("`{w}` is a core word: {d}"),
                                 (Err(_), Some(d)) => println!("{d}"),
                                 (Err(_), None) => {
                                     eprintln!("`{w}` is not defined in the environment.");
