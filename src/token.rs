@@ -1,42 +1,36 @@
+use crate::core::Core;
 use logos::Logos;
-use std::fmt;
 
 /// Tokens are lexed from input strings.
-#[derive(Logos, Debug, PartialEq, Eq, Clone)]
+#[derive(Logos, Debug, PartialEq, Eq, Clone, strum::Display)]
 #[logos(error = crate::Error)]
 #[logos(skip r"\s")]
 pub enum Token<'source> {
     /// Define a new word.
     #[token("def")]
+    #[strum(serialize = "def")]
     Def,
     /// A core word.
-    #[regex(r"(drop|swap|dup|add|sub|mul|div|mod|zero[?]|print)")]
-    Core(&'source str),
+    #[regex(r"(drop|swap|dup|add|sub|mul|div|mod|zero[?]|print)", |lex| lex.slice().parse::<Core>().unwrap())]
+    #[strum(serialize = "{0}")]
+    Core(Core),
     /// An integer in decimal notation.
     #[regex(r"-?[[:digit:]]+", |lex| lex.slice().parse())]
+    #[strum(serialize = "{0}")]
     Num(i64),
     /// An integer in hexadecimal notation.
     #[regex(r"#[[:xdigit:]]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16))]
+    #[strum(serialize = "#{0:x}")]
     Hex(i64),
     /// A (possibly unknown) custom token.
     #[regex(r"\S+", priority = 0)]
+    #[strum(serialize = "{0}")]
     Custom(&'source str),
-}
-
-impl fmt::Display for Token<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Self::Def => f.write_str("def"),
-            Self::Core(s) | Self::Custom(s) => f.write_str(s),
-            Self::Num(n) => write!(f, "{n}"),
-            Self::Hex(n) => write!(f, "#{n:x}"),
-        }
-    }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use super::*;
+    use super::{super::core::tests::core, *};
     use logos::Logos;
     use proptest::prelude::*;
 
@@ -69,16 +63,7 @@ pub mod tests {
     pub fn token() -> impl Strategy<Value = Token<'static>> {
         prop_oneof![
             Just(Token::Def),
-            Just(Token::Core("drop")),
-            Just(Token::Core("swap")),
-            Just(Token::Core("dup")),
-            Just(Token::Core("add")),
-            Just(Token::Core("sub")),
-            Just(Token::Core("mul")),
-            Just(Token::Core("div")),
-            Just(Token::Core("mod")),
-            Just(Token::Core("zero?")),
-            Just(Token::Core("print")),
+            core().prop_map(Token::Core),
             any::<i64>().prop_map(Token::Num),
             (0..i64::MAX).prop_map(Token::Hex),
         ]
