@@ -7,9 +7,6 @@ pub enum Error {
     /// Something bad happened.
     #[error("Something bad happened.")]
     Bad,
-    /// I expected a number, but I found `{0}`.
-    #[error("I expected a number, but I found `{0}`.")]
-    NaN(String),
     /// The stack is too small for `{0}`; it requires {1}, but the stack only has {2}.
     #[error("The stack is too small for `{0}`; it requires {1}, but the stack only has {2}.")]
     Small(String, usize, usize),
@@ -24,7 +21,7 @@ pub enum Error {
     SelfRef(String),
     /// `def` is a reserved keyword.
     #[error("`def` is a reserved keyword.")]
-    Reserved,
+    DefReserved,
     /// `def` needs a name, but none was supplied.
     #[error("`def` needs a name, but none was supplied.")]
     DefName,
@@ -39,7 +36,7 @@ pub enum Error {
     DefBody,
     /// `{0}` requires its second operand be nonzero.
     #[error("`{0}` requires its second operand be nonzero.")]
-    NNZ(String),
+    NotNonzero(String),
     /// `mod` would error with arguments (`i64::MIN`, -1)
     #[error("`mod` would error with arguments (`i64::MIN`, -1)")]
     ModEdge,

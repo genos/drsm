@@ -19,7 +19,7 @@ impl TryFrom<Token<'_>> for Word {
     type Error = Error;
     fn try_from(t: Token<'_>) -> Result<Self, Self::Error> {
         match t {
-            Token::Def => Err(Error::Reserved),
+            Token::Def => Err(Error::DefReserved),
             Token::Core(c) => Ok(Self::Core(c)),
             Token::Num(n) | Token::Hex(n) => Ok(Self::Num(n)),
             Token::Custom(w) => Ok(Self::Custom(w.to_string())),

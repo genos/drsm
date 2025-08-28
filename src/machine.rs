@@ -96,7 +96,7 @@ fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Resul
     if s < r {
         Err(Error::Small(word.to_string(), r, s))
     } else if matches!(word, Word::Core(Core::Div | Core::Mod)) && stack[s - 2] == 0 {
-        Err(Error::NNZ(word.to_string()))
+        Err(Error::NotNonzero(word.to_string()))
     } else if *word == Word::Core(Core::Mod) && matches!(stack[s - 2..s], [-1, i64::MIN]) {
         Err(Error::ModEdge)
     } else if matches!(word, Word::Custom(_)) && !env.contains_key(&word.to_string()) {
