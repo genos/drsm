@@ -72,11 +72,11 @@ pub mod tests {
             let s = w.to_string();
             let ts = Token::lexer(&s).collect::<Result<Vec<Token>, _>>();
             prop_assert!(ts.is_ok());
-            let mut ts = ts.unwrap();
+            let mut ts = ts.expect("is_ok");
             prop_assert_eq!(ts.len(), 1);
-            let w2 = Word::try_from(ts.pop().unwrap());
+            let w2 = Word::try_from(ts.pop().expect("len == 1"));
             prop_assert!(w2.is_ok());
-            prop_assert_eq!(w, w2.unwrap());
+            prop_assert_eq!(w, w2.expect("is_ok"));
         }
         #[test]
         fn into_name(w in word()) {

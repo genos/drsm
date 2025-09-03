@@ -153,7 +153,10 @@ mod tests {
     #[test]
     fn mode_roundtrip() {
         for m in [Mode::Vi, Mode::Emacs] {
-            assert_eq!(m, ValueEnum::from_str(&m.to_string(), false).unwrap());
+            assert_eq!(
+                m,
+                ValueEnum::from_str(&m.to_string(), false).expect("known modes")
+            );
         }
     }
 }

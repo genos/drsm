@@ -47,7 +47,7 @@ pub mod tests {
             let s = c.to_string();
             let c2 = s.parse::<Core>();
             prop_assert!(c2.is_ok());
-            prop_assert_eq!(c2.unwrap(), c);
+            prop_assert_eq!(c2.expect("is_ok"), c);
         }
     }
 

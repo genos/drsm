@@ -3,8 +3,7 @@ use logos::Logos;
 
 /// Tokens are lexed from input strings.
 #[derive(Logos, Debug, PartialEq, Eq, Clone, strum::Display)]
-#[logos(error = crate::Error)]
-#[logos(skip r"\s")]
+#[logos(skip r"\s", error = crate::Error)]
 pub enum Token<'source> {
     /// Define a new word.
     #[token("def")]
@@ -40,9 +39,9 @@ pub mod tests {
             let s = t.to_string();
             let ts = Token::lexer(&s).collect::<Result<Vec<_>, _>>();
             prop_assert!(ts.is_ok());
-            let mut ts = ts.unwrap();
+            let mut ts = ts.expect("is_ok");
             prop_assert_eq!(ts.len(), 1);
-            let t2 = ts.pop().unwrap();
+            let t2 = ts.pop().expect("len == 1");
             prop_assert_eq!(t2, t);
         }
         #[test]
@@ -51,9 +50,9 @@ pub mod tests {
             prop_assert_eq!(&t.to_string(), &s);
             let ts = Token::lexer(&s).collect::<Result<Vec<_>, _>>();
             prop_assert!(ts.is_ok());
-            let mut ts = ts.unwrap();
+            let mut ts = ts.expect("is_ok");
             prop_assert_eq!(ts.len(), 1);
-            let t2 = ts.pop().unwrap();
+            let t2 = ts.pop().expect("len == 1");
             prop_assert_eq!(t2, t);
         }
     }
