@@ -108,7 +108,7 @@ Line-editing is enabled, with {mode}-style key bindings (chosen at startup via t
                         println!("Bye!");
                         break;
                     }
-                    Ok(l) if l.starts_with("?lookup ") => {
+                    Ok(l) if l.starts_with("?lookup") => {
                         if let Some(w) = l.split_ascii_whitespace().nth(1) {
                             match (Core::get_field_docs(w), m.lookup(w)) {
                                 (Ok(d), _) => println!("`{w}` is a core word: {d}"),

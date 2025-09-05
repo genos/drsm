@@ -11,6 +11,7 @@
     strum::EnumIter,
     strum::EnumString,
 )]
+#[documented_fields(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum Core {
     /// Pop an item off the stack, ignoring it.
@@ -30,6 +31,7 @@ pub enum Core {
     /// Take the remainder of the second in the first element of the stack.
     Mod,
     /// Pop 3 elements. If the first is zero, push the second back on; otherwise, push the third.
+    #[documented_fields(rename = "zero?")]
     #[strum(serialize = "zero?")]
     Zero,
     /// Pop an element off the stack and print it.
