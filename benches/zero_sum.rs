@@ -8,6 +8,7 @@ fn zero_sum_machine(n: i64) -> Machine {
     for _ in 0..n {
         s.push_str(" 0 0 add");
     }
+    s.push_str(" add");
     m.read_eval(&s).expect("OK by design");
     m
 }
