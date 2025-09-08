@@ -28,5 +28,9 @@ itertools = "0.14.0"
 proptest = "1.7.0"
 
 [[bench]]
-name = "benchmark"
+name = "fib"
+harness = false
+
+[[bench]]
+name = "zero_sum"
 harness = false

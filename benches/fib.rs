@@ -1,4 +1,3 @@
-#![allow(clippy::type_complexity)]
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use drsm::Machine;
 use itertools::Itertools;
@@ -13,7 +12,6 @@ fn fib_machine(n: i64) -> Machine {
     });
     m.read_eval("def fib_1 1").expect("OK by design");
     m.read_eval("def fib_0 1").expect("OK by design");
-    m.read_eval(&format!("fib_{n}")).expect("OK by design");
     m
 }
 
