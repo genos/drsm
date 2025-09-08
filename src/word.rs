@@ -76,7 +76,7 @@ pub mod tests {
             prop_assert_eq!(ts.len(), 1);
             let w2 = Word::try_from(ts.pop().expect("len == 1"));
             prop_assert!(w2.is_ok());
-            prop_assert_eq!(w, w2.expect("is_ok"));
+            prop_assert_eq!(w2.expect("is_ok"), w);
         }
         #[test]
         fn into_name(w in word()) {

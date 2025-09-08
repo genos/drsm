@@ -44,27 +44,15 @@ pub mod tests {
             let t2 = ts.pop().expect("len == 1");
             prop_assert_eq!(t2, t);
         }
-        #[test]
-        fn custom_roundtrip(s in r"custom_token_\S+") {
-            let t = Token::Custom(&s);
-            prop_assert_eq!(&t.to_string(), &s);
-            let ts = Token::lexer(&s).collect::<Result<Vec<_>, _>>();
-            prop_assert!(ts.is_ok());
-            let mut ts = ts.expect("is_ok");
-            prop_assert_eq!(ts.len(), 1);
-            let t2 = ts.pop().expect("len == 1");
-            prop_assert_eq!(t2, t);
-        }
     }
 
-    // NOTE: I can't get Token::Custom to generate due to lifetime issues, and
-    // proptest_derive::Arbitrary doesn't allow generic lifetimes.
     pub fn token() -> impl Strategy<Value = Token<'static>> {
         prop_oneof![
             Just(Token::Def),
             core().prop_map(Token::Core),
             any::<i64>().prop_map(Token::Num),
             (0..i64::MAX).prop_map(Token::Hex),
+            Just("custom_token").prop_map(Token::Custom),
         ]
     }
 }
