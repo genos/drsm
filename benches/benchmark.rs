@@ -1,27 +1,20 @@
 #![allow(clippy::type_complexity)]
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use drsm::{Core, Machine, Word};
-use indexmap::IndexMap;
+use drsm::Machine;
 use itertools::Itertools;
 use std::hint::black_box;
 
-fn fib_machine(n: u32) -> Machine {
-    let mut env = (0..=n)
-        .tuple_windows()
-        .map(|(i, j, k)| {
-            (
-                format!("fib_{k}").into(),
-                vec![
-                    Word::Custom(format!("fib_{j}").into()),
-                    Word::Custom(format!("fib_{i}").into()),
-                    Word::Core(Core::Add),
-                ],
-            )
-        })
-        .collect::<IndexMap<_, _>>();
-    env.insert("fib_0".into(), vec![Word::Num(1)]);
-    env.insert("fib_1".into(), vec![Word::Num(1)]);
-    Machine::with_env(env)
+fn fib_machine(n: i64) -> Machine {
+    assert!(n < 93, "Too big for i64");
+    let mut m = Machine::default();
+    (0..=n).tuple_windows().for_each(|(i, j, k)| {
+        m.read_eval(&format!("def fib_{k} fib_{j} fib_{i} add"))
+            .expect("OK by design");
+    });
+    m.read_eval("def fib_1 1").expect("OK by design");
+    m.read_eval("def fib_0 1").expect("OK by design");
+    m.read_eval(&format!("fib_{n}")).expect("OK by design");
+    m
 }
 
 fn bench(c: &mut Criterion) {

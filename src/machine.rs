@@ -21,17 +21,6 @@ impl Default for Machine {
     }
 }
 
-impl Machine {
-    #[must_use]
-    /// Create a machine with a custom environment
-    pub fn with_env(env: IndexMap<LeanString, Vec<Word>>) -> Self {
-        Self {
-            env,
-            stack: Vec::with_capacity(64),
-        }
-    }
-}
-
 impl fmt::Display for Machine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("core:")?;
@@ -209,6 +198,22 @@ mod tests {
         }
     }
 
+    fn fib_machine(n: i64) -> Result<i64, Error> {
+        if n >= 93 {
+            Err(Error::Bad)
+        } else {
+            let mut m = Machine::default();
+            (0..=n)
+                .tuple_windows()
+                .map(|(i, j, k)| m.read_eval(&format!("def fib_{k} fib_{j} fib_{i} add")))
+                .collect::<Result<Vec<_>, _>>()?;
+            m.read_eval("def fib_1 1")?;
+            m.read_eval("def fib_0 1")?;
+            m.read_eval(&format!("fib_{n}"))?;
+            m.stack.pop().ok_or(Error::Bad)
+        }
+    }
+
     proptest! {
         #[test]
         fn pushing_extends_stack(ns in prop::collection::vec(any::<i64>(), 1..64)) {
@@ -246,10 +251,13 @@ mod tests {
                     || ws.contains(&n)
                     || n.parse::<i64>().is_ok()
                     || [
-                        "def", "pop", "swap", "dup", "add", "sub", "mul", "div", "mod", "zero?", "print"
+                        "def", "pop", "swap", "dup", "add", "sub", "mul", "div", "mod", "zero?", "print",
                     ]
                     .contains(&&*n))
-                    || (r.is_ok() && m.lookup(&n).is_some() && m.env.contains_key(&LeanString::from(n.clone())) && m.to_string().contains(&n))
+                    || (r.is_ok()
+                        && m.lookup(&n).is_some()
+                        && m.env.contains_key(&LeanString::from(n.clone()))
+                        && m.to_string().contains(&n))
             );
             prop_assert!(m.stack.is_empty());
         }
@@ -257,38 +265,28 @@ mod tests {
         fn custom_ok(ws in prop::collection::vec(word(), 1..64), n in r"custom_word_\S+") {
             let mut m1 = Machine::default();
             let r1 = ws.iter().map(|w| m1.eval(w)).collect::<Result<Vec<()>, _>>();
-            let s = format!("def {n} {}", ws.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(" "));
+            let s = format!(
+                "def {n} {}",
+                ws.iter()
+                    .map(std::string::ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            );
             let mut m2 = Machine::default();
             prop_assert!(m2.read_eval(&s).is_ok());
             prop_assert_eq!(m2.eval(&Word::Custom(n.into())).is_ok(), r1.is_ok());
         }
         #[test]
-        fn fib(n in 0..16) {
-            let env = {
-                let mut e = (0..=n).tuple_windows().map(|(i, j, k)| {
-                    (
-                        format!("fib_{k}").into(),
-                        vec![
-                            Word::Custom(format!("fib_{j}").into()),
-                            Word::Custom(format!("fib_{i}").into()),
-                            Word::Core(Core::Add),
-                        ],
-                    )
-                }).collect::<IndexMap<_, _>>();
-                e.insert("fib_0".into(), vec![Word::Num(1)]);
-                e.insert("fib_1".into(), vec![Word::Num(1)]);
-                e
-            };
-            let mut m = Machine { env, stack: Vec::new() };
-            let r = m.read_eval(&format!("fib_{n}"));
-            prop_assert!(r.is_ok());
+        fn fib(n in 0..16i64) {
             let (mut a, mut b) = (1, 1);
             for _ in 1..n {
                 let t = a + b;
                 a = b;
                 b = t;
             }
-            prop_assert_eq!(m.stack, vec![b]);
+            let r = fib_machine(n);
+            prop_assert!(r.is_ok());
+            prop_assert_eq!(r.expect("is_ok"), b);
         }
     }
 }

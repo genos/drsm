@@ -11,4 +11,4 @@ mod machine;
 mod token;
 mod word;
 
-pub use crate::{core::Core, error::Error, machine::Machine, word::Word};
+pub use crate::{core::Core, error::Error, machine::Machine};
