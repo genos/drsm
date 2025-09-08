@@ -10,17 +10,17 @@ fn fib_machine(n: u32) -> Machine {
         .tuple_windows()
         .map(|(i, j, k)| {
             (
-                format!("fib_{k}"),
+                format!("fib_{k}").into(),
                 vec![
-                    Word::Custom(format!("fib_{j}")),
-                    Word::Custom(format!("fib_{i}")),
+                    Word::Custom(format!("fib_{j}").into()),
+                    Word::Custom(format!("fib_{i}").into()),
                     Word::Core(Core::Add),
                 ],
             )
         })
         .collect::<IndexMap<_, _>>();
-    env.insert("fib_0".to_string(), vec![Word::Num(1)]);
-    env.insert("fib_1".to_string(), vec![Word::Num(1)]);
+    env.insert("fib_0".into(), vec![Word::Num(1)]);
+    env.insert("fib_1".into(), vec![Word::Num(1)]);
     Machine::with_env(env)
 }
 

@@ -1,4 +1,5 @@
 use crate::{Error, core::Core, token::Token};
+use lean_string::LeanString;
 use std::convert::TryFrom;
 
 /// The words upon which our stack machine works.
@@ -12,7 +13,7 @@ pub enum Word {
     Num(i64),
     /// A custom word.
     #[strum(serialize = "{0}")]
-    Custom(String),
+    Custom(LeanString),
 }
 
 impl TryFrom<Token<'_>> for Word {
@@ -22,7 +23,7 @@ impl TryFrom<Token<'_>> for Word {
             Token::Def => Err(Error::DefReserved),
             Token::Core(c) => Ok(Self::Core(c)),
             Token::Num(n) | Token::Hex(n) => Ok(Self::Num(n)),
-            Token::Custom(w) => Ok(Self::Custom(w.to_string())),
+            Token::Custom(w) => Ok(Self::Custom(LeanString::from(w))),
         }
     }
 }
@@ -33,16 +34,32 @@ impl PartialEq<String> for Word {
     }
 }
 
+impl PartialEq<LeanString> for Word {
+    fn eq(&self, s: &LeanString) -> bool {
+        matches!(self, Self::Custom(w) if w == s)
+    }
+}
+
 impl Word {
     /// Transform this word into a name, if possible.
     ///
     /// # Errors
     /// If the word is a number or a core word.
-    pub fn into_name(self) -> Result<String, Error> {
+    pub fn into_name(self) -> Result<LeanString, Error> {
         match self {
             Self::Custom(w) => Ok(w),
             Self::Num(n) => Err(Error::NumNotName(n)),
             Self::Core(_) => Err(Error::CoreNotName(self.to_string())),
+        }
+    }
+    /// Unsafely grab the inner lean string of this custom word.
+    ///
+    /// # Panics
+    /// If this isn't a custom word.
+    pub(crate) fn unsafe_custom_inner(&self) -> &LeanString {
+        match self {
+            Self::Custom(w) => w,
+            _ => panic!("Unafe custom inner"),
         }
     }
 }
@@ -93,7 +110,7 @@ pub mod tests {
         prop_oneof![
             core().prop_map(Word::Core),
             any::<i64>().prop_map(Word::Num),
-            r"[a-zA-Z]+".prop_map(Word::Custom)
+            r"custom_[a-zA-Z]+".prop_map(|s| Word::Custom(s.into()))
         ]
     }
 }
