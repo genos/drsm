@@ -1,5 +1,6 @@
 use crate::{core::Core, error::Error, token::Token, word::Word};
 use indexmap::IndexMap;
+use lean_string::LeanString;
 use logos::Logos;
 use std::{convert::TryFrom, fmt};
 use strum::IntoEnumIterator;
@@ -7,7 +8,7 @@ use strum::IntoEnumIterator;
 /// The main data structure: a stack machine with an environment of local definitions.
 #[derive(Debug)]
 pub struct Machine {
-    env: IndexMap<String, Vec<Word>>,
+    env: IndexMap<LeanString, Vec<Word>>,
     stack: Vec<i64>,
 }
 
@@ -15,6 +16,17 @@ impl Default for Machine {
     fn default() -> Self {
         Self {
             env: IndexMap::with_capacity(64),
+            stack: Vec::with_capacity(64),
+        }
+    }
+}
+
+impl Machine {
+    #[must_use]
+    /// Create a machine with a custom environment
+    pub fn with_env(env: IndexMap<LeanString, Vec<Word>>) -> Self {
+        Self {
+            env,
             stack: Vec::with_capacity(64),
         }
     }
@@ -56,7 +68,7 @@ impl Machine {
                 if us.is_empty() {
                     return Err(Error::DefBody);
                 } else if us.iter().any(|u| u == &k) {
-                    return Err(Error::SelfRef(k));
+                    return Err(Error::SelfRef(k.to_string()));
                 }
                 let _ = self.env.insert(k, us);
                 break; // no need for `else` here
@@ -83,7 +95,7 @@ impl Machine {
 }
 
 /// Broken out because `eval_inner` is separate, too, and requires this.
-fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Result<(), Error> {
+fn check(env: &IndexMap<LeanString, Vec<Word>>, stack: &[i64], word: &Word) -> Result<(), Error> {
     let s = stack.len();
     let r = match word {
         Word::Num(_) | Word::Custom(_) => 0,
@@ -99,7 +111,7 @@ fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Resul
         Err(Error::NotNonzero(word.to_string()))
     } else if *word == Word::Core(Core::Mod) && matches!(stack[s - 2..s], [-1, i64::MIN]) {
         Err(Error::ModEdge)
-    } else if matches!(word, Word::Custom(_)) && !env.contains_key(&word.to_string()) {
+    } else if matches!(word, Word::Custom(_)) && !env.contains_key(word.unsafe_custom_inner()) {
         Err(Error::Unknown(word.to_string()))
     } else {
         Ok(())
@@ -109,7 +121,7 @@ fn check(env: &IndexMap<String, Vec<Word>>, stack: &[i64], word: &Word) -> Resul
 /// Broken out to untangle mutability concerns.
 /// Full of `stack.pop().expect(…)` because this should _only_ be called from within `Machine::eval`.
 fn eval_inner(
-    env: &IndexMap<String, Vec<Word>>,
+    env: &IndexMap<LeanString, Vec<Word>>,
     stack: &mut Vec<i64>,
     word: &Word,
 ) -> Result<(), Error> {
@@ -174,6 +186,7 @@ fn eval_inner(
 #[cfg(test)]
 mod tests {
     use super::{super::word::tests::word, *};
+    use itertools::Itertools;
     use proptest::prelude::*;
     use std::string::ToString;
 
@@ -236,7 +249,7 @@ mod tests {
                         "def", "pop", "swap", "dup", "add", "sub", "mul", "div", "mod", "zero?", "print"
                     ]
                     .contains(&&*n))
-                    || (r.is_ok() && m.lookup(&n).is_some() && m.env.contains_key(&n) && m.to_string().contains(&n))
+                    || (r.is_ok() && m.lookup(&n).is_some() && m.env.contains_key(&LeanString::from(n.clone())) && m.to_string().contains(&n))
             );
             prop_assert!(m.stack.is_empty());
         }
@@ -247,7 +260,35 @@ mod tests {
             let s = format!("def {n} {}", ws.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(" "));
             let mut m2 = Machine::default();
             prop_assert!(m2.read_eval(&s).is_ok());
-            prop_assert_eq!(m2.eval(&Word::Custom(n)).is_ok(), r1.is_ok());
+            prop_assert_eq!(m2.eval(&Word::Custom(n.into())).is_ok(), r1.is_ok());
+        }
+        #[test]
+        fn fib(n in 0..16) {
+            let env = {
+                let mut e = (0..=n).tuple_windows().map(|(i, j, k)| {
+                    (
+                        format!("fib_{k}").into(),
+                        vec![
+                            Word::Custom(format!("fib_{j}").into()),
+                            Word::Custom(format!("fib_{i}").into()),
+                            Word::Core(Core::Add),
+                        ],
+                    )
+                }).collect::<IndexMap<_, _>>();
+                e.insert("fib_0".into(), vec![Word::Num(1)]);
+                e.insert("fib_1".into(), vec![Word::Num(1)]);
+                e
+            };
+            let mut m = Machine { env, stack: Vec::new() };
+            let r = m.read_eval(&format!("fib_{n}"));
+            prop_assert!(r.is_ok());
+            let (mut a, mut b) = (1, 1);
+            for _ in 1..n {
+                let t = a + b;
+                a = b;
+                b = t;
+            }
+            prop_assert_eq!(m.stack, vec![b]);
         }
     }
 }
