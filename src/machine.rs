@@ -20,6 +20,17 @@ impl Default for Machine {
     }
 }
 
+impl Machine {
+    #[must_use]
+    /// Create a machine with a custom environment
+    pub fn with_env(env: IndexMap<String, Vec<Word>>) -> Self {
+        Self {
+            env,
+            stack: Vec::with_capacity(64),
+        }
+    }
+}
+
 impl fmt::Display for Machine {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str("core:")?;
@@ -174,6 +185,7 @@ fn eval_inner(
 #[cfg(test)]
 mod tests {
     use super::{super::word::tests::word, *};
+    use itertools::Itertools;
     use proptest::prelude::*;
     use std::string::ToString;
 
@@ -248,6 +260,34 @@ mod tests {
             let mut m2 = Machine::default();
             prop_assert!(m2.read_eval(&s).is_ok());
             prop_assert_eq!(m2.eval(&Word::Custom(n)).is_ok(), r1.is_ok());
+        }
+        #[test]
+        fn fib(n in 0..16) {
+            let env = {
+                let mut e = (0..=n).tuple_windows().map(|(i, j, k)| {
+                    (
+                        format!("fib_{k}"),
+                        vec![
+                            Word::Custom(format!("fib_{j}")),
+                            Word::Custom(format!("fib_{i}")),
+                            Word::Core(Core::Add),
+                        ],
+                    )
+                }).collect::<IndexMap<_, _>>();
+                e.insert("fib_0".to_string(), vec![Word::Num(1)]);
+                e.insert("fib_1".to_string(), vec![Word::Num(1)]);
+                e
+            };
+            let mut m = Machine { env, stack: Vec::new() };
+            let r = m.read_eval(&format!("fib_{n}"));
+            prop_assert!(r.is_ok());
+            let (mut a, mut b) = (1, 1);
+            for _ in 1..n {
+                let t = a + b;
+                a = b;
+                b = t;
+            }
+            prop_assert_eq!(m.stack, vec![b]);
         }
     }
 }

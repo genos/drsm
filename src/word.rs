@@ -34,6 +34,10 @@ impl PartialEq<String> for Word {
 }
 
 impl Word {
+    /// Transform this word into a name, if possible.
+    ///
+    /// # Errors
+    /// If the word is a number or a core word.
     pub fn into_name(self) -> Result<String, Error> {
         match self {
             Self::Custom(w) => Ok(w),
