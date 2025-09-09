@@ -6,12 +6,12 @@ use std::hint::black_box;
 fn fib_machine(n: i64) -> Machine {
     assert!(n < 93, "Too big for i64");
     let mut m = Machine::default();
+    m.read_eval("def fib_0 1").expect("OK by design");
+    m.read_eval("def fib_1 1").expect("OK by design");
     (0..=n).tuple_windows().for_each(|(i, j, k)| {
         m.read_eval(&format!("def fib_{k} fib_{j} fib_{i} add"))
             .expect("OK by design");
     });
-    m.read_eval("def fib_1 1").expect("OK by design");
-    m.read_eval("def fib_0 1").expect("OK by design");
     m
 }
 
