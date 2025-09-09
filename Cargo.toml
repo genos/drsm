@@ -27,6 +27,14 @@ criterion = "0.7.0"
 itertools = "0.14.0"
 proptest = "1.7.0"
 
+[lib]
+bench = false
+
+[[bin]]
+name = "drsm"
+path = "src/main.rs"
+bench = false
+
 [[bench]]
 name = "fib"
 harness = false
