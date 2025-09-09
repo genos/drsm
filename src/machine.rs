@@ -59,7 +59,19 @@ impl Machine {
                 } else if us.iter().any(|u| u == &k) {
                     return Err(Error::SelfRef(k.to_string()));
                 }
-                let _ = self.env.insert(k, us);
+                let _ = self.env.insert(
+                    k,
+                    us.into_iter()
+                        .flat_map(|u: Word| {
+                            u.clone()
+                                .into_name()
+                                .ok()
+                                .and_then(|n| self.env.get(&n))
+                                .cloned()
+                                .unwrap_or_else(|| vec![u])
+                        })
+                        .collect::<Vec<Word>>(),
+                );
                 break; // no need for `else` here
             }
             self.eval(&Word::try_from(t)?)?;
