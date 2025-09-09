@@ -17,7 +17,7 @@ fn fib_machine(n: i64) -> Machine {
 
 fn bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("Fibonacci");
-    for n in 1..30 {
+    for n in 10..20 {
         group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &n| {
             let mut m = fib_machine(n);
             b.iter(|| m.read_eval(&black_box(format!("fib_{n}"))));
