@@ -1,5 +1,4 @@
 history.txt
-/target
 # Created by https://www.toptal.com/developers/gitignore/api/macos,rust,vim
 # Edit at https://www.toptal.com/developers/gitignore?templates=macos,rust,vim
 
@@ -73,3 +72,13 @@ tags
 [._]*.un~
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,rust,vim
+
+# Devenv
+.devenv*
+devenv.local.nix
+
+# direnv
+.direnv
+
+# pre-commit
+.pre-commit-config.yaml
