@@ -59,7 +59,7 @@ impl Word {
     pub(crate) fn unsafe_custom_inner(&self) -> &LeanString {
         match self {
             Self::Custom(w) => w,
-            _ => panic!("Unafe custom inner"),
+            _ => panic!("Unsafe custom inner called on non-custom word {self}"),
         }
     }
 }

@@ -14,15 +14,11 @@
   git-hooks.hooks = {
     clippy = {
       enable = true;
-      packageOverrides.cargo = pkgs.cargo;
-      packageOverrides.clippy = pkgs.clippy;
       settings.allFeatures = true;
       settings.extraArgs = "--all-targets -- -D -warnings";
     };
     rustfmt = {
       enable = true;
-      packageOverrides.cargo = pkgs.cargo;
-      packageOverrides.rustfmt = pkgs.rustfmt;
       settings.all = true;
     };
     unit-tests = {
