@@ -15,7 +15,7 @@
     clippy = {
       enable = true;
       settings.allFeatures = true;
-      settings.extraArgs = "--all-targets -- -D -warnings";
+      settings.extraArgs = "--all-targets -- -D warnings -D clippy::pedantic";
     };
     rustfmt = {
       enable = true;
