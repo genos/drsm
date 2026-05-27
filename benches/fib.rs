@@ -1,6 +1,5 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use drsm::Machine;
-use itertools::Itertools;
 use std::hint::black_box;
 
 fn fib_machine(n: i64) -> Machine {
@@ -8,8 +7,8 @@ fn fib_machine(n: i64) -> Machine {
     let mut m = Machine::default();
     m.read_eval("def fib_0 1").expect("OK by design");
     m.read_eval("def fib_1 1").expect("OK by design");
-    (0..=n).tuple_windows().for_each(|(i, j, k)| {
-        m.read_eval(&format!("def fib_{k} fib_{j} fib_{i} add"))
+    (0..n - 1).for_each(|i| {
+        m.read_eval(&format!("def fib_{} fib_{} fib_{i} add", i + 2, i + 1))
             .expect("OK by design");
     });
     m

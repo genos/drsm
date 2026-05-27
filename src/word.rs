@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 
 /// The words upon which our stack machine works.
 #[derive(Debug, PartialEq, Eq, Clone, strum::Display)]
+#[cfg_attr(test, derive(chaos_theory::Arbitrary))]
 pub enum Word {
     /// A core word,
     #[strum(serialize = "{0}")]
@@ -13,7 +14,18 @@ pub enum Word {
     Num(i64),
     /// A custom word.
     #[strum(serialize = "{0}")]
-    Custom(LeanString),
+    Custom(#[cfg_attr(test, chaos_theory(generator = custom()))] LeanString),
+}
+
+#[cfg(test)]
+fn custom() -> impl chaos_theory::Generator<Item = LeanString> {
+    chaos_theory::make::from_fn(|src| {
+        let s = src.any_of(
+            "custom word",
+            chaos_theory::make::string_matching(r"custom_[a-zA-Z]+", true),
+        );
+        LeanString::from(&s)
+    })
 }
 
 impl TryFrom<Token<'_>> for Word {
@@ -52,7 +64,7 @@ impl Word {
             Self::Core(_) => Err(Error::CoreNotName(self.to_string())),
         }
     }
-    /// Unsafely grab the inner lean string of this custom word.
+    /// Unsafely grab the inner `LeanString` of this custom word.
     ///
     /// # Panics
     /// If this isn't a custom word.
@@ -66,51 +78,58 @@ impl Word {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{
-        super::{core::tests::core, token::tests::token},
-        *,
-    };
+    use super::*;
+    use chaos_theory::check;
     use logos::Logos;
-    use proptest::prelude::*;
 
-    proptest! {
-        #[test]
-        fn from_token(t in token()) {
+    #[test]
+    fn from_token() {
+        check(|src| {
+            let t = src.any::<Token>("token");
             let w = Word::try_from(t.clone());
-            prop_assert_eq!(w.is_ok(), t != Token::Def);
-        }
-        #[test]
-        fn self_eq(w in word()) {
-            prop_assert_eq!(w.clone(), w);
-        }
-        #[test]
-        #[allow(clippy::cmp_owned)]
-        fn str_eq(w in word(), s in r"\S+") {
-            prop_assert_eq!(w == s, w.to_string() == s);
-        }
-        #[test]
-        fn roundtrip(w in word()) {
-            let s = w.to_string();
-            let ts = Token::lexer(&s).collect::<Result<Vec<Token>, _>>();
-            prop_assert!(ts.is_ok());
-            let mut ts = ts.expect("is_ok");
-            prop_assert_eq!(ts.len(), 1);
-            let w2 = Word::try_from(ts.pop().expect("len == 1"));
-            prop_assert!(w2.is_ok());
-            prop_assert_eq!(w2.expect("is_ok"), w);
-        }
-        #[test]
-        fn into_name(w in word()) {
-            let n = w.clone().into_name();
-            prop_assert_eq!(n.is_ok(), w == Word::Custom(n.unwrap_or_default()));
-        }
+            assert_eq!(w.is_ok(), t != Token::Def);
+        });
     }
 
-    pub fn word() -> impl Strategy<Value = Word> {
-        prop_oneof![
-            core().prop_map(Word::Core),
-            any::<i64>().prop_map(Word::Num),
-            r"custom_[a-zA-Z]+".prop_map(|s| Word::Custom(s.into()))
-        ]
+    #[test]
+    fn self_eq() {
+        check(|src| {
+            let w = src.any::<Word>("word");
+            assert_eq!(w.clone(), w);
+        });
+    }
+
+    #[test]
+    #[allow(clippy::cmp_owned)]
+    fn str_eq() {
+        check(|src| {
+            let w = src.any::<Word>("word");
+            let s = src.any_of("string", chaos_theory::make::string_matching(r"\S+", true));
+            assert_eq!(w == s, w.to_string() == s);
+        });
+    }
+
+    #[test]
+    fn roundtrip() {
+        check(|src| {
+            let w = src.any::<Word>("word");
+            let s = w.to_string();
+            let ts = Token::lexer(&s).collect::<Result<Vec<Token>, _>>();
+            assert!(ts.is_ok());
+            let mut ts = ts.expect("is_ok");
+            assert_eq!(ts.len(), 1);
+            let w2 = Word::try_from(ts.pop().expect("len == 1"));
+            assert!(w2.is_ok());
+            assert_eq!(w2.expect("is_ok"), w);
+        });
+    }
+
+    #[test]
+    fn into_name() {
+        check(|src| {
+            let w = src.any::<Word>("word");
+            let n = w.clone().into_name();
+            assert_eq!(n.is_ok(), w == Word::Custom(n.unwrap_or_default()));
+        });
     }
 }
