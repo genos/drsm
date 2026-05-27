@@ -11,6 +11,7 @@
     strum::EnumIter,
     strum::EnumString,
 )]
+#[cfg_attr(test, derive(chaos_theory::Arbitrary))]
 #[documented_fields(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum Core {
@@ -41,30 +42,16 @@ pub enum Core {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use proptest::prelude::*;
+    use chaos_theory::check;
 
-    proptest! {
-        #[test]
-        fn roundtrip(c in core()) {
+    #[test]
+    fn roundtrip() {
+        check(|src| {
+            let c = src.any::<Core>("core");
             let s = c.to_string();
             let c2 = s.parse::<Core>();
-            prop_assert!(c2.is_ok());
-            prop_assert_eq!(c2.expect("is_ok"), c);
-        }
-    }
-
-    pub fn core() -> impl Strategy<Value = Core> {
-        prop_oneof![
-            Just(Core::Drop),
-            Just(Core::Swap),
-            Just(Core::Dup),
-            Just(Core::Add),
-            Just(Core::Sub),
-            Just(Core::Mul),
-            Just(Core::Div),
-            Just(Core::Mod),
-            Just(Core::Zero),
-            Just(Core::Print),
-        ]
+            assert!(c2.is_ok());
+            assert_eq!(c2.expect("is_ok"), c);
+        });
     }
 }

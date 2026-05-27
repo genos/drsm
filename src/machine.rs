@@ -1,6 +1,6 @@
 use crate::{core::Core, error::Error, token::Token, word::Word};
-use indexmap::IndexMap;
 use lean_string::LeanString;
+use indexmap::IndexMap;
 use logos::Logos;
 use std::{convert::TryFrom, fmt};
 use strum::IntoEnumIterator;
@@ -78,13 +78,17 @@ impl Machine {
     }
     /// `check` the input, then run it through `eval_inner`.
     fn eval(&mut self, word: &Word) -> Result<(), Error> {
-        check(&self.env, &self.stack, word)?;
+        check_word(&self.env, &self.stack, word)?;
         eval_inner(&self.env, &mut self.stack, word)
     }
 }
 
 /// Broken out because `eval_inner` is separate, too, and requires this.
-fn check(env: &IndexMap<LeanString, Vec<Word>>, stack: &[i64], word: &Word) -> Result<(), Error> {
+fn check_word(
+    env: &IndexMap<LeanString, Vec<Word>>,
+    stack: &[i64],
+    word: &Word,
+) -> Result<(), Error> {
     let s = stack.len();
     let r = match word {
         Word::Num(_) | Word::Custom(_) => 0,
@@ -164,7 +168,7 @@ fn eval_inner(
         Word::Num(n) => stack.push(*n),
         Word::Custom(c) => {
             for w in &env[c] {
-                check(env, stack, w)?;
+                check_word(env, stack, w)?;
                 eval_inner(env, stack, w)?;
             }
         }
@@ -174,9 +178,8 @@ fn eval_inner(
 
 #[cfg(test)]
 mod tests {
-    use super::{super::word::tests::word, *};
-    use itertools::Itertools;
-    use proptest::prelude::*;
+    use super::*;
+    use chaos_theory::{check, make};
     use std::string::ToString;
 
     #[test]
@@ -203,9 +206,8 @@ mod tests {
             Err(Error::Bad)
         } else {
             let mut m = Machine::default();
-            (0..=n)
-                .tuple_windows()
-                .map(|(i, j, k)| m.read_eval(&format!("def fib_{k} fib_{j} fib_{i} add")))
+            (0..n - 1)
+                .map(|i| m.read_eval(&format!("def fib_{} fib_{} fib_{i} add", i + 2, i + 1)))
                 .collect::<Result<Vec<_>, _>>()?;
             m.read_eval("def fib_1 1")?;
             m.read_eval("def fib_0 1")?;
@@ -214,44 +216,64 @@ mod tests {
         }
     }
 
-    proptest! {
-        #[test]
-        fn pushing_extends_stack(ns in prop::collection::vec(any::<i64>(), 1..64)) {
+    #[test]
+    fn pushing_extends_stack() {
+        check(|src| {
+            let ns = src.any_of("ns", make::vec_with_size(make::arbitrary(), 1..64));
             let mut m = Machine::default();
             let mut old = m.to_string().len();
             for n in ns {
-                prop_assert!(m.eval(&Word::Num(n)).is_ok());
+                assert!(m.eval(&Word::Num(n)).is_ok());
                 let new = m.to_string().len();
-                prop_assert_eq!(new - old, format!(" {n}").len());
+                assert_eq!(new - old, format!(" {n}").len());
                 old = new;
             }
-        }
-        #[test]
-        fn check_implies_eval(ws in prop::collection::vec(word(), 0..64)) {
+        });
+    }
+
+    #[test]
+    fn check_implies_eval() {
+        check(|src| {
+            let ws = src.any_of("ws", make::vec_with_size(make::arbitrary(), 0..64));
             let mut m = Machine::default();
             for w in ws {
-                prop_assert_eq!(check(&m.env, &m.stack, &w).is_ok(), m.eval(&w).is_ok());
+                assert_eq!(check_word(&m.env, &m.stack, &w).is_ok(), m.eval(&w).is_ok());
             }
-        }
-        #[test]
-        fn check_implies_read_eval(ws in prop::collection::vec(word(), 0..64)) {
+        });
+    }
+
+    #[test]
+    fn check_implies_read_eval() {
+        check(|src| {
+            let ws = src.any_of("ws", make::vec_with_size(make::arbitrary(), 0..64));
             let mut m = Machine::default();
             for w in ws {
-                prop_assert_eq!(check(&m.env, &m.stack, &w).is_ok(), m.read_eval(&w.to_string()).is_ok());
+                assert_eq!(
+                    check_word(&m.env, &m.stack, &w).is_ok(),
+                    m.read_eval(&w.to_string()).is_ok()
+                );
             }
-        }
-        #[test]
-        fn def_adds_to_env(ws in prop::collection::vec(r"\S+", 0..64), n in r"custom_name_\S+") {
+        });
+    }
+
+    #[test]
+    fn def_adds_to_env() {
+        check(|src| {
+            let ws = src.any_of(
+                "ws",
+                make::vec_with_size(make::string_matching(r"custom_name_\S+", true), 0..64),
+            );
+            let n = src.any_of("n", make::string_matching(r"custom_name_\S+", true));
             let mut m = Machine::default();
             let d = ws.join(" ");
-            let s = format!("def {n} {d}");
-            let r = m.read_eval(&s);
-            prop_assert!(
+            let r = m.read_eval(&format!("def {n} {d}"));
+            assert!(
                 (ws.is_empty()
                     || ws.contains(&n)
                     || n.parse::<i64>().is_ok()
                     || [
-                        "def", "pop", "swap", "dup", "add", "sub", "mul", "div", "mod", "zero?", "print",
+                        "def", "pop", "swap", "dup", "add", "sub", "mul", "div", "mod", "zero?",
+                        "print",
                     ]
                     .contains(&&*n))
                     || (r.is_ok()
@@ -259,12 +281,20 @@ mod tests {
                         && m.env.contains_key(&LeanString::from(n.clone()))
                         && m.to_string().contains(&n))
             );
-            prop_assert!(m.stack.is_empty());
-        }
-        #[test]
-        fn custom_ok(ws in prop::collection::vec(word(), 1..64), n in r"custom_word_\S+") {
+            assert!(m.stack.is_empty());
+        });
+    }
+
+    #[test]
+    fn custom_ok() {
+        check(|src| {
+            let ws = src.any_of("ws", make::vec_with_size(make::arbitrary(), 1..64));
+            let n = src.any_of("n", make::string_matching(r"custom_name_\S+", true));
             let mut m1 = Machine::default();
-            let r1 = ws.iter().map(|w| m1.eval(w)).collect::<Result<Vec<()>, _>>();
+            let r1 = ws
+                .iter()
+                .map(|w| m1.eval(w))
+                .collect::<Result<Vec<()>, _>>();
             let s = format!(
                 "def {n} {}",
                 ws.iter()
@@ -273,11 +303,15 @@ mod tests {
                     .join(" ")
             );
             let mut m2 = Machine::default();
-            prop_assert!(m2.read_eval(&s).is_ok());
-            prop_assert_eq!(m2.eval(&Word::Custom(n.into())).is_ok(), r1.is_ok());
-        }
-        #[test]
-        fn fib(n in 0..16i64) {
+            assert!(m2.read_eval(&s).is_ok());
+            assert_eq!(m2.eval(&Word::Custom(n.into())).is_ok(), r1.is_ok());
+        });
+    }
+
+    #[test]
+    fn fib() {
+        check(|src| {
+            let n = src.any_of("n", make::int_in_range(0..16));
             let (mut a, mut b) = (1, 1);
             for _ in 1..n {
                 let t = a + b;
@@ -285,8 +319,8 @@ mod tests {
                 b = t;
             }
             let r = fib_machine(n);
-            prop_assert!(r.is_ok());
-            prop_assert_eq!(r.expect("is_ok"), b);
-        }
+            assert!(r.is_ok());
+            assert_eq!(r.expect("is_ok"), b);
+        });
     }
 }

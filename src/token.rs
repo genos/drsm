@@ -3,6 +3,7 @@ use logos::Logos;
 
 /// Tokens are lexed from input strings.
 #[derive(Logos, Debug, PartialEq, Eq, Clone, strum::Display)]
+#[cfg_attr(test, derive(chaos_theory::Arbitrary))]
 #[logos(skip r"\s", error = crate::Error)]
 pub enum Token<'source> {
     /// Define a new word.
@@ -20,39 +21,33 @@ pub enum Token<'source> {
     /// An integer in hexadecimal notation.
     #[regex(r"#[[:xdigit:]]+", |lex| i64::from_str_radix(&lex.slice()[1..], 16))]
     #[strum(serialize = "#{0:x}")]
-    Hex(i64),
+    Hex(#[cfg_attr(test, chaos_theory(generator = chaos_theory::make::int_in_range(0..)))] i64),
     /// A (possibly unknown) custom token.
     #[regex(r"\S+", priority = 0)]
     #[strum(serialize = "{0}")]
-    Custom(&'source str),
+    Custom(
+        #[cfg_attr(test, chaos_theory(generator = chaos_theory::make::just("custom_token")))]
+        &'source str,
+    ),
 }
 
 #[cfg(test)]
 pub mod tests {
-    use super::{super::core::tests::core, *};
+    use super::*;
+    use chaos_theory::check;
     use logos::Logos;
-    use proptest::prelude::*;
 
-    proptest! {
-        #[test]
-        fn roundtrip(t in token()) {
+    #[test]
+    fn roundtrip() {
+        check(|src| {
+            let t = src.any::<Token>("token");
             let s = t.to_string();
             let ts = Token::lexer(&s).collect::<Result<Vec<_>, _>>();
-            prop_assert!(ts.is_ok());
+            assert!(ts.is_ok());
             let mut ts = ts.expect("is_ok");
-            prop_assert_eq!(ts.len(), 1);
+            assert_eq!(ts.len(), 1);
             let t2 = ts.pop().expect("len == 1");
-            prop_assert_eq!(t2, t);
-        }
-    }
-
-    pub fn token() -> impl Strategy<Value = Token<'static>> {
-        prop_oneof![
-            Just(Token::Def),
-            core().prop_map(Token::Core),
-            any::<i64>().prop_map(Token::Num),
-            (0..i64::MAX).prop_map(Token::Hex),
-            Just("custom_token").prop_map(Token::Custom),
-        ]
+            assert_eq!(t2, t);
+        });
     }
 }
