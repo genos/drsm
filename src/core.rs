@@ -19,6 +19,8 @@ pub enum Core {
     Drop,
     /// Swap the top two elements of the stack.
     Swap,
+    /// Rotate the top three elements of the stack.
+    Rot,
     /// Duplicate the first element of the stack.
     Dup,
     /// Add the first two elements of the stack.
