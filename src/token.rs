@@ -11,7 +11,7 @@ pub enum Token<'source> {
     #[strum(serialize = "def")]
     Def,
     /// A core word.
-    #[regex(r"(drop|swap|dup|add|sub|mul|div|mod|zero[?]|print)", |lex| lex.slice().parse::<Core>().unwrap())]
+    #[regex(r"(drop|swap|rot|dup|add|sub|mul|div|mod|zero[?]|print)", |lex| lex.slice().parse::<Core>().unwrap())]
     #[strum(serialize = "{0}")]
     Core(Core),
     /// An integer in decimal notation.

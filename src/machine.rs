@@ -1,6 +1,6 @@
 use crate::{core::Core, error::Error, token::Token, word::Word};
-use lean_string::LeanString;
 use indexmap::IndexMap;
+use lean_string::LeanString;
 use logos::Logos;
 use std::{convert::TryFrom, fmt};
 use strum::IntoEnumIterator;
@@ -95,7 +95,7 @@ fn check_word(
         Word::Core(c) => match c {
             Core::Drop | Core::Dup | Core::Print => 1,
             Core::Swap | Core::Add | Core::Sub | Core::Mul | Core::Div | Core::Mod => 2,
-            Core::Zero => 3,
+            Core::Zero | Core::Rot => 3,
         },
     };
     if s < r {
@@ -125,6 +125,14 @@ fn eval_inner(
         Word::Core(Core::Swap) => {
             let x = stack.pop().expect("Internal error @ swap 1");
             let y = stack.pop().expect("Internal error @ swap 2");
+            stack.push(x);
+            stack.push(y);
+        }
+        Word::Core(Core::Rot) => {
+            let x = stack.pop().expect("Internal error @ rot 1");
+            let y = stack.pop().expect("Internal error @ rot 2");
+            let z = stack.pop().expect("Internal error @ rot 3");
+            stack.push(z);
             stack.push(x);
             stack.push(y);
         }

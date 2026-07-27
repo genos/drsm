@@ -20,6 +20,8 @@ pub enum Core {
     /// Swap the top two elements of the stack.
     Swap,
     /// Duplicate the first element of the stack.
+    Rot,
+    /// Rotate the top three elements of the stack.
     Dup,
     /// Add the first two elements of the stack.
     Add,
