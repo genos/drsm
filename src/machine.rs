@@ -132,8 +132,8 @@ fn eval_inner(
             let x = stack.pop().expect("Internal error @ rot 1");
             let y = stack.pop().expect("Internal error @ rot 2");
             let z = stack.pop().expect("Internal error @ rot 3");
-            stack.push(z);
             stack.push(x);
+            stack.push(z);
             stack.push(y);
         }
         Word::Core(Core::Dup) => {
