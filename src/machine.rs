@@ -280,8 +280,8 @@ mod tests {
                     || ws.contains(&n)
                     || n.parse::<i64>().is_ok()
                     || [
-                        "def", "pop", "swap", "dup", "add", "sub", "mul", "div", "mod", "zero?",
-                        "print",
+                        "def", "pop", "swap", "rot", "dup", "add", "sub", "mul", "div", "mod",
+                        "zero?", "print",
                     ]
                     .contains(&&*n))
                     || (r.is_ok()
