@@ -1,18 +1,18 @@
 [package]
 name = "drsm"
 description = "Dylan's Rusty Stack Machine"
-version = "0.15.0"
+version = "0.15.1"
 edition = "2024"
 
 [dependencies]
-clap = { version = "4.6.4", features = ["derive"] }
+clap = { version = "4.6.6", features = ["derive"] }
 documented = "0.10.0"
 indexmap = "2.14.0"
 lean_string = "0.7.0"
 logos = "0.16.1"
 rustyline = "18.0.1"
 strum = { version = "0.28.0", features = ["derive"] }
-thiserror = "2.0.19"
+thiserror = "2.0.20"
 
 [profile.dev]
 debug = 0
@@ -23,7 +23,7 @@ codegen-units = 1
 panic = "abort"
 
 [dev-dependencies]
-chaos_theory = { version = "0.3.5", features = ["derive", "regex"] }
+chaos_theory = { version = "0.3.8", features = ["derive", "regex"] }
 criterion = "0.8.2"
 
 [lib]
